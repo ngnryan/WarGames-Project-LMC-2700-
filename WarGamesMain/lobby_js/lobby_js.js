@@ -1,4 +1,4 @@
-let screen = "lobby"
+let screen = "challenge one"
 let typedText = "";
 let correctPassword = "open123";
 let message = "";
@@ -31,6 +31,8 @@ function mouseClicked() {
     if (exitCondition) {
       screen = "lobby"
     }
+  } else if (screen == "lobby") {
+      screen = "challenge one"
   }
 }
 
