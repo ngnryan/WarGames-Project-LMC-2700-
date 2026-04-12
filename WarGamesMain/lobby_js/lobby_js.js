@@ -1,4 +1,4 @@
-let screen = "challenge one"
+let screen = "lobby"
 let typedText = "";
 let correctPassword = "open123";
 let message = "";
@@ -19,6 +19,19 @@ function drawDesk() {
   line(300*s, 330*s, 300*s, 400*s);
 
   rect(335*s, 350*s, 50*s, 10*s);
+}
+
+function mouseClicked() {
+  console.log(mouseX, mouseY)
+  
+  let exitCondition = mouseX >= 30 && mouseX < 100 && mouseY >= 580 && mouseY < 630
+  
+  
+  if (screen == "challenge one") {
+    if (exitCondition) {
+      screen = "lobby"
+    }
+  }
 }
 
 
