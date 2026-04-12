@@ -1,5 +1,8 @@
+
+
+
 function setup() {
-  createCanvas(400, 400)
+  createCanvas(1440, 900)
 }
 
 
@@ -7,14 +10,24 @@ function setup() {
   
   
 function drawDesk() {
-    line(60, 60, 60, 350);   
-  line(340, 60, 340, 350);  
-  line(60, 350, 340, 350);  
+  //surface
+  
+  line(0, 300, 30, 250) 
+  line(400, 300, 370, 250)
+  line(0, 330, 400, 330)
+  line(30, 250, 370, 250)
+  
+  //detail
+  
+  //cabinet
+  line (0, 310, 400, 310)
+  line(300, 330, 300, 400)
+  
+  rect(335, 350, 50, 10)
+  
+  print(windowHeight, windowWidth)
+  
 
-  //lid
-  fill(100, 80, 60, 80);
-  stroke(120, 100, 80, 60);
-  rect(55, 45, 290, 18);
 }
  
 function draw() {
