@@ -1,5 +1,3 @@
-<<<<<<< Updated upstream
-function setup() {
 
 =======
 //TODO:
