@@ -1,5 +1,3 @@
-
-=======
 //TODO:
 //1. Change state names to be more descriptive
 
@@ -24,12 +22,27 @@ let screen = "lobby";
 let typedText = "";
 let correctPassword = "open123";
 let message = "";
-let newspaperBuffer = null;   // caches the rendered newspaper
+let newspaperBuffer = null;
+
+/**************PIGEON CIPHER*******************/
+let images = [];
+let currentIndex = 0;
+let lastSwitch = 0;
+const INTERVAL = 1000;
 /***********************************************/
 
 function preload() {
   backimg = loadImage("computerscreen.png");
   myFont = loadFont("VT323-Regular.ttf");
+
+  // PIGEON CIPHER IMAGES
+  images[0] = loadImage('image_F.png');
+  images[1] = loadImage('image_D.png');
+  images[2] = loadImage('image_N.png');
+  images[3] = loadImage('image_C.png');
+  images[4] = loadImage('image_E.png');
+  images[5] = loadImage('image_O.png');
+  images[6] = loadImage('image_V.png');
 }
 
 function setup() {
@@ -44,14 +57,9 @@ function setup() {
   dots = 1;
   index = 0;
   writing = false;
->>>>>>> Stashed changes
 }
 
 function draw() {
-<<<<<<< Updated upstream
-
-}
-=======
   if (state === 0) {
     titleScreen();
   } else if (state === 1) {
@@ -146,11 +154,13 @@ function successlobby() {
     drawSuccessScreen();
   } else if (screen === "newspaper") {
     drawNewspaperScreen();
+  } else if (screen === "finalpuzzle") {
+    drawPigeonCipher();
   }
 }
 
 
-/*******************USER INPUT*************/
+/***************USER INPUT******************/
 function keyTyped() {
   if (state === 0) {
     if (writing) {
@@ -179,14 +189,12 @@ function mouseClicked() {
         screen = "lobby";
       }
     } else if (screen === "lobby") {
-      // prioritize newspaper click; otherwise fall through to the computer/challenge
       if (deskNewspaper.hovered) {
         screen = "newspaper";
       } else {
         screen = "challenge one";
       }
     } else if (screen === "newspaper") {
-      // click anywhere to exit back to the lobby
       screen = "lobby";
     }
   }
@@ -203,15 +211,18 @@ function keyPressed() {
       }
     }
   } else if (state === 1) {
-    if (screen !== "challenge one") {
-      return;
-    }
+    if (screen !== "challenge one") return;
+
     if (keyCode === BACKSPACE) {
       typedText = typedText.substring(0, typedText.length - 1);
     } else if (keyCode === ENTER || keyCode === RETURN) {
       if (typedText === correctPassword) {
         message = "ACCESS GRANTED";
         screen = "success";
+      } else if (typedText === "tictactoe") {
+        currentIndex = 0;
+        lastSwitch = millis();
+        screen = "finalpuzzle";
       } else {
         message = "ACCESS DENIED";
         typedText = "";
@@ -223,10 +234,30 @@ function keyPressed() {
 }
 
 
-/************PUZZLES****************/
+/************PIGEON CIPHER****************/
+function drawPigeonCipher() {
+  background(0);
+
+  let img = images[currentIndex];
+  if (img) {
+    image(img, width / 2 - img.width / 2, height / 2 - img.height / 2);
+  }
+
+  if (millis() - lastSwitch > INTERVAL) {
+    currentIndex++;
+    lastSwitch = millis();
+
+    if (currentIndex >= images.length) {
+      currentIndex = 0;
+      screen = "lobby";
+    }
+  }
+}
 
 
-/********Clues************/
+/***************PUZZLES******************/
+
+/***************Clues******************/
 let deskNewspaper = {
   x: 70,
   y: 430,
@@ -236,7 +267,7 @@ let deskNewspaper = {
 };
 
 
-/************HELPERS****************/
+/***************HELPERS******************/
 function drawDesk() {
   let s = 1.66;
 
@@ -259,9 +290,6 @@ function updateNewspaperHover() {
     mouseY <= deskNewspaper.y + deskNewspaper.h;
 }
 
-// Draws the small newspaper sitting on the desk (a clickable thumbnail).
-// Uses its own RGB color mode locally so the cream paper color renders correctly
-// even though the main canvas is in HSB mode.
 function drawDeskNewspaper() {
   push();
   colorMode(RGB, 255);
@@ -272,18 +300,15 @@ function drawDeskNewspaper() {
   const nw = deskNewspaper.w;
   const nh = deskNewspaper.h;
 
-  // soft drop shadow
   noStroke();
   fill(0, 0, 0, 40);
   rect(nx + 3, ny + 3, nw, nh);
 
-  // paper
   fill(246, 242, 232);
   stroke(40);
   strokeWeight(0.8);
   rect(nx, ny, nw, nh);
 
-  // masthead
   noStroke();
   fill(20);
   textFont("Times New Roman");
@@ -292,25 +317,21 @@ function drawDeskNewspaper() {
   textSize(9);
   text("Herald Tribune", nx + nw / 2, ny + 3);
 
-  // double rule under masthead
   stroke(40);
   strokeWeight(0.4);
   line(nx + 4, ny + 17, nx + nw - 4, ny + 17);
   line(nx + 4, ny + 19, nx + nw - 4, ny + 19);
 
-  // headline
   noStroke();
   fill(20);
   textStyle(BOLD);
   textSize(7);
   text("TITLE", nx + nw / 2, ny + 22);
 
-  // rule under headline
   stroke(40);
   strokeWeight(0.3);
   line(nx + 4, ny + 32, nx + nw - 4, ny + 32);
 
-  // three columns of mini lines suggesting body text
   noStroke();
   fill(60);
   const colW = (nw - 16) / 3;
@@ -322,13 +343,11 @@ function drawDeskNewspaper() {
     }
   }
 
-  // vertical column dividers
   stroke(60);
   strokeWeight(0.3);
   line(nx + 4 + colW,         ny + 35, nx + 4 + colW,         ny + nh - 4);
   line(nx + 4 + 2 * colW + 3, ny + 35, nx + 4 + 2 * colW + 3, ny + nh - 4);
 
-  // hover highlight
   if (deskNewspaper.hovered) {
     noFill();
     stroke(255, 220, 0);
@@ -339,14 +358,12 @@ function drawDeskNewspaper() {
   pop();
 }
 
-// Full-size newspaper view, shown when the desk newspaper is clicked.
 function drawNewspaperScreen() {
   push();
   colorMode(RGB, 255);
 
   background(40);
 
-  // build once, cache thereafter
   if (newspaperBuffer === null) {
     newspaperBuffer = createGraphics(500, 600);
     newspaperBuffer.textFont("Times New Roman");
@@ -356,7 +373,6 @@ function drawNewspaperScreen() {
   imageMode(CORNER);
   image(newspaperBuffer, (width - 500) / 2, (height - 600) / 2);
 
-  // hint to close
   fill(255);
   noStroke();
   textFont(myFont);
@@ -403,11 +419,9 @@ function drawMiniLines(x, y, maxWidth, count, gap) {
   }
 }
 
-
 function buildNewspaper(g) {
   g.background(255);
 
-  // page
   g.fill(246, 242, 232);
   g.stroke(50);
   g.strokeWeight(1.2);
@@ -415,7 +429,7 @@ function buildNewspaper(g) {
 
   addPaperTexture(g);
 
-  // ===== masthead =====
+  // masthead
   g.fill(20);
   g.noStroke();
   g.textAlign(CENTER, TOP);
@@ -433,7 +447,6 @@ function buildNewspaper(g) {
   g.text("LATE CITY", 440, 28);
   g.text("EDITION", 440, 40);
 
-  // top rules
   g.stroke(30);
   g.strokeWeight(1);
   g.line(20, 66, 470, 66);
@@ -451,7 +464,7 @@ function buildNewspaper(g) {
   g.textAlign(RIGHT, TOP);
   g.text("PRICE TWO CENTS", 470, 71);
 
-  // ===== main headline =====
+  // main headline
   g.fill(15);
   g.textAlign(CENTER, TOP);
   g.textStyle(BOLD);
@@ -462,32 +475,30 @@ function buildNewspaper(g) {
   g.textSize(9);
   g.text("Subtitle.", 250, 132);
 
-  // rule under headline
   g.stroke(60);
   g.strokeWeight(0.6);
   g.line(20, 152, 470, 152);
 
-  // ===== layout guides =====
+  // layout
   const topY = 162;
   const midY = 378;
   const bottomY = 572;
 
-  const leftX = 20,     leftW = 95;
-  const leftMidX = 122, leftMidW = 88;
-  const centerX = 217,  centerW = 145;
-  const rightX = 369,   rightW = 101;
+  const leftX = 20;     const leftW = 95;
+  const leftMidX = 122; const leftMidW = 88;
+  const centerX = 217;  const centerW = 145;
+  const rightX = 369;   const rightW = 101;
 
   const headerY = topY + 2;
   const bodyY   = topY + 28;
 
-  // upper vertical dividers (stop before the horizontal rule)
   g.stroke(60);
   g.strokeWeight(0.8);
   g.line(118, topY, 118, midY - 3);
   g.line(213, topY, 213, midY - 3);
   g.line(365, topY, 365, midY - 3);
 
-  // ===== left column =====
+  // left column
   g.noStroke();
   g.fill(20);
   g.textAlign(LEFT, TOP);
@@ -502,7 +513,7 @@ function buildNewspaper(g) {
     leftX, bodyY, leftW, midY - bodyY - 8
   );
 
-  // ===== left middle column =====
+  // left middle column
   g.fill(20);
   g.textStyle(BOLD);
   g.textSize(8.5);
@@ -515,7 +526,7 @@ function buildNewspaper(g) {
     leftMidX, bodyY, leftMidW, midY - bodyY - 8
   );
 
-  // ===== center section =====
+  // center section
   g.fill(20);
   g.textStyle(BOLD);
   g.textSize(8.5);
@@ -543,7 +554,7 @@ function buildNewspaper(g) {
     centerX + 5, bodyY + 148, centerW - 10, 30
   );
 
-  // ===== right column =====
+  // right column
   g.fill(20);
   g.textAlign(LEFT, TOP);
   g.textStyle(BOLD);
@@ -557,12 +568,12 @@ function buildNewspaper(g) {
     rightX, bodyY, rightW, midY - bodyY - 8
   );
 
-  // ===== horizontal divider =====
+  // horizontal divider
   g.stroke(60);
   g.strokeWeight(0.9);
   g.line(20, midY, 470, midY);
 
-  // ===== lower section =====
+  // lower section
   const lowerHeaderY = midY + 14;
   const lowerBodyY   = midY + 36;
   const lowerDivX    = 245;
@@ -600,7 +611,6 @@ function buildNewspaper(g) {
   );
 }
 
-
 function addPaperTexture(g) {
   for (let i = 0; i < 1400; i++) {
     let px = random(10, 490);
@@ -620,4 +630,3 @@ function addPaperTexture(g) {
     g.line(x1, y1, x2, y2);
   }
 }
->>>>>>> Stashed changes
