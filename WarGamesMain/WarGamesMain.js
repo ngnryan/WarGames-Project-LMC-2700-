@@ -514,7 +514,14 @@ function drawPigeonCipherNote() {
 
 /***************HELPERS******************/
 function drawDesk() {
+  push();
+
   let s = 1.66;
+
+  stroke(60);
+  strokeWeight(1.5);
+  noFill();
+  rectMode(CORNER);
 
   line(0 * s, 300 * s, 30 * s, 250 * s);
   line(400 * s, 300 * s, 370 * s, 250 * s);
@@ -525,6 +532,8 @@ function drawDesk() {
   line(300 * s, 330 * s, 300 * s, 400 * s);
 
   rect(335 * s, 350 * s, 50 * s, 10 * s);
+
+  pop();
 }
 
 function updateNewspaperHover() {
