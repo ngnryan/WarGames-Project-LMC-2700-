@@ -55,12 +55,12 @@ function preload() {
   myFont = loadFont("VT323-Regular.ttf");
 
   // PIGEON CIPHER IMAGES
-  images[0] = loadImage('image_F.png');
-  images[1] = loadImage('image_D.png');
-  images[2] = loadImage('image_N.png');
+  images[0] = loadImage('image_D.png');
+  images[1] = loadImage('image_E.png');
+  images[2] = loadImage('image_F.png');
   images[3] = loadImage('image_C.png');
-  images[4] = loadImage('image_E.png');
-  images[5] = loadImage('image_O.png');
+  images[4] = loadImage('image_O.png');
+  images[5] = loadImage('image_N.png');
   images[6] = loadImage('image_V.png');
 }
 
@@ -166,6 +166,8 @@ function successlobby() {
     drawDesk();
     drawDeskNewspaper();
     updateNewspaperHover();
+    drawDefconSign();       // <-- DEFCON sign at top
+    drawPigeonCipherNote(); // <-- sticky note on wall
   } else if (screen === "challenge one") {
     background(255);
     drawPasswordScreen();
@@ -293,6 +295,221 @@ let deskNewspaper = {
   h: 78,
   hovered: false
 };
+
+
+/***************DEFCON SIGN******************/
+function drawDefconSign() {
+  push();
+  colorMode(RGB, 255);
+  rectMode(CORNER);
+
+  // Sign frame/bracket
+  let signX = width / 2;
+  let signY = 30;
+
+  // Frame background (dark metal)
+  fill(28, 28, 32);
+  stroke(60, 60, 70);
+  strokeWeight(2);
+  rectMode(CENTER);
+  rect(signX, signY + 10, 360, 80, 4);
+
+  // DEFCON label at top of sign
+  noStroke();
+  fill(220, 220, 220);
+  textFont("Arial");
+  textStyle(BOLD);
+  textSize(11);
+  textAlign(CENTER, CENTER);
+  text("DEFCON", signX, signY - 10);
+
+  // The 5 level boxes
+  let levels = [5, 4, 3, 2, 1];
+  let boxColors = [
+    [50, 80, 200],   // 5 - blue
+    [30, 180, 40],   // 4 - green (highlighted)
+    [220, 200, 0],   // 3 - yellow
+    [200, 40, 90],   // 2 - pink/red
+    [230, 230, 230], // 1 - white
+  ];
+
+  let boxW = 52;
+  let boxH = 42;
+  let startX = signX - 120;
+  let boxY = signY + 14;
+
+  for (let i = 0; i < 5; i++) {
+    let bx = startX + i * 62;
+
+    // Outer glow for highlighted (level 5, index 0) - blue glow
+    if (i === 0) {
+      noFill();
+      stroke(80, 140, 255, 140);
+      strokeWeight(8);
+      rect(bx, boxY, boxW, boxH, 3);
+      stroke(80, 140, 255, 60);
+      strokeWeight(14);
+      rect(bx, boxY, boxW, boxH, 3);
+    }
+
+    // Box background
+    fill(boxColors[i][0], boxColors[i][1], boxColors[i][2]);
+    stroke(0);
+    strokeWeight(i === 0 ? 2.5 : 1.5);
+    rect(bx, boxY, boxW, boxH, 3);
+
+    // Dim overlay for non-highlighted boxes
+    if (i !== 0) {
+      fill(0, 0, 0, 100);
+      noStroke();
+      rect(bx, boxY, boxW, boxH, 3);
+    }
+
+    // Number
+    noStroke();
+    if (i === 0) {
+      fill(255, 255, 255); // bright white for highlighted
+    } else {
+      fill(200, 200, 200, 160);
+    }
+    textFont("Arial");
+    textStyle(BOLD);
+    textSize(i === 0 ? 24 : 20);
+    textAlign(CENTER, CENTER);
+    text(levels[i], bx + boxW / 2, boxY + boxH / 2);
+  }
+
+  // Bracket legs (two vertical supports under sign)
+  stroke(50, 50, 55);
+  strokeWeight(3);
+  line(signX - 100, signY + 50, signX - 100, signY + 90);
+  line(signX + 100, signY + 50, signX + 100, signY + 90);
+  line(signX - 100, signY + 90, signX + 100, signY + 90);
+
+  pop();
+}
+
+
+/***************PIGEON CIPHER STICKY NOTE******************/
+// The tic-tac-toe cipher grid key
+// Cells: [NMA, ZTL, VYI, EKU, OWX, DPH, FQR, JSB, CG]
+// Bottom-right cell only has O (no X) meaning only circle symbol
+
+function drawPigeonCipherNote() {
+  push();
+  colorMode(RGB, 255);
+  rectMode(CORNER);
+
+  let nx = 520;
+  let ny = 60;
+  let nw = 155;
+  let nh = 195;
+
+  // Slight drop shadow
+  noStroke();
+  fill(0, 0, 0, 30);
+  rect(nx + 4, ny + 4, nw, nh, 2);
+
+  // Sticky note body - yellow
+  fill(255, 245, 120);
+  stroke(200, 185, 60);
+  strokeWeight(0.8);
+  rect(nx, ny, nw, nh, 2);
+
+  // Folded corner (top-right)
+  fill(220, 205, 80);
+  noStroke();
+  triangle(nx + nw - 14, ny, nx + nw, ny, nx + nw, ny + 14);
+  fill(180, 165, 50);
+  triangle(nx + nw - 14, ny, nx + nw, ny + 14, nx + nw - 14, ny + 14);
+
+  // Title "CIPHER KEY"
+  fill(60, 40, 0);
+  noStroke();
+  textFont("Arial");
+  textStyle(BOLD);
+  textSize(8);
+  textAlign(CENTER, TOP);
+  text("CIPHER KEY", nx + nw / 2, ny + 6);
+
+  // Draw the tic-tac-toe grid
+  let gridX = nx + 12;
+  let gridY = ny + 22;
+  let cellW = 42;
+  let cellH = 54;
+
+  // Grid lines
+  stroke(80, 60, 0);
+  strokeWeight(1.2);
+
+  // Vertical lines
+  line(gridX + cellW,     gridY, gridX + cellW,     gridY + 3 * cellH);
+  line(gridX + 2 * cellW, gridY, gridX + 2 * cellW, gridY + 3 * cellH);
+
+  // Horizontal lines
+  line(gridX, gridY + cellH,     gridX + 3 * cellW, gridY + cellH);
+  line(gridX, gridY + 2 * cellH, gridX + 3 * cellW, gridY + 2 * cellH);
+
+  // Cell data: [letters, hasCircle, hasCross]
+  // Row 0
+  let cells = [
+    { letters: "N, M, A,", circle: true,  cross: true  },
+    { letters: "Z, T, L,", circle: true,  cross: true  },
+    { letters: "V, Y, I,", circle: true,  cross: true  },
+    { letters: "E, K, U,", circle: true,  cross: true  },
+    { letters: "O, W, X,", circle: true,  cross: true  },
+    { letters: "D, P, H,", circle: true,  cross: true  },
+    { letters: "F, Q, R,", circle: true,  cross: true  },
+    { letters: "J, S, B",  circle: true,  cross: true  },
+    { letters: "C, G",     circle: true,  cross: false }, // bottom-right: O only
+  ];
+
+  textFont("Arial");
+
+  for (let i = 0; i < 9; i++) {
+    let row = floor(i / 3);
+    let col = i % 3;
+    // Center of this cell
+    let cx = gridX + col * cellW + cellW / 2;
+    let cy = gridY + row * cellH;
+    let cell = cells[i];
+
+    // O and X drawn side by side, centered in cell horizontally
+    // O left of center, X right of center (6px apart)
+    let symY = cy + 8; // vertical position of symbols
+    let symR = 4;      // circle radius
+
+    if (cell.circle && cell.cross) {
+      // Both: O at cx-7, X at cx+7
+      stroke(70, 70, 70);
+      strokeWeight(1.2);
+      noFill();
+      ellipse(cx - 7, symY, symR * 2, symR * 2);
+
+      stroke(70, 70, 70);
+      strokeWeight(1.2);
+      let xc = cx + 7;
+      line(xc - 3.5, symY - 3.5, xc + 3.5, symY + 3.5);
+      line(xc + 3.5, symY - 3.5, xc - 3.5, symY + 3.5);
+    } else if (cell.circle) {
+      // Only O: centered
+      stroke(70, 70, 70);
+      strokeWeight(1.2);
+      noFill();
+      ellipse(cx, symY, symR * 2, symR * 2);
+    }
+
+    // Letters centered below symbols
+    noStroke();
+    fill(40, 30, 0);
+    textStyle(NORMAL);
+    textSize(6.5);
+    textAlign(CENTER, TOP);
+    text(cell.letters, cx, cy + 18);
+  }
+
+  pop();
+}
 
 
 /***************HELPERS******************/
