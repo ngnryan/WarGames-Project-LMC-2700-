@@ -1,5 +1,6 @@
 //TODO:
 //1. Change state names to be more descriptive
+//2. The circuits game will provide a pattern, which one of the stray clues has a key for, spelling out tictactoe
 
 /*****TITLE SCREEN VARS*********/
 var state;
@@ -29,6 +30,24 @@ let images = [];
 let currentIndex = 0;
 let lastSwitch = 0;
 const INTERVAL = 1000;
+/***********************************************/
+
+/**************CIRCUITS PUZZLE*******************/
+let circuitStates = [
+  false, false, false,
+  false, false, false,
+  false, false, false
+];
+
+let circuitSolution = [
+  true, false, true,
+  true, false, true,
+  true, false, false
+];
+
+let circuitMessage = "";
+let circuitSolved = false;
+
 /***********************************************/
 
 function preload() {
@@ -156,6 +175,8 @@ function successlobby() {
     drawNewspaperScreen();
   } else if (screen === "finalpuzzle") {
     drawPigeonCipher();
+  } else if (screen === "circuits") {
+    drawCircuitsPuzzle();
   }
 }
 
@@ -196,6 +217,8 @@ function mouseClicked() {
       }
     } else if (screen === "newspaper") {
       screen = "lobby";
+    } else if (screen === "circuits") {
+      handleCircuitClicks();
     }
   }
 }
@@ -219,6 +242,11 @@ function keyPressed() {
       if (typedText === correctPassword) {
         message = "ACCESS GRANTED";
         screen = "success";
+      } else if (typedText === "circuits") {
+        typedText = "";
+        message = "";
+        circuitMessage = "";
+        screen = "circuits";
       } else if (typedText === "tictactoe") {
         currentIndex = 0;
         lastSwitch = millis();
@@ -629,4 +657,175 @@ function addPaperTexture(g) {
     g.strokeWeight(0.6);
     g.line(x1, y1, x2, y2);
   }
+}
+
+/**************CIRCUITS PUZZLE FUNCTIONS*******************/
+function drawCircuitsPuzzle() {
+  background(18);
+
+  fill(0, 255, 0);
+  textFont(myFont);
+  textAlign(LEFT, TOP);
+
+  textSize(26);
+  text("> CIRCUIT BOARD", 30, 25);
+
+  textSize(16);
+  text("Match the stable configuration.", 30, 65);
+  text("Back", 30, 600);
+
+  drawCircuitBackButton();
+  drawCircuitResetButton();
+  drawCircuitGrid();
+
+  textSize(16);
+  text(circuitMessage, 30, 555);
+}
+
+function drawCircuitBackButton() {
+  noFill();
+  stroke(0, 255, 0);
+  rect(20, 585, 80, 35);
+}
+
+function drawCircuitResetButton() {
+  noFill();
+  stroke(0, 255, 0);
+  rect(580, 25, 90, 35);
+
+  noStroke();
+  fill(0, 255, 0);
+  textSize(16);
+  textAlign(CENTER, CENTER);
+  text("RESET", 625, 43);
+  textAlign(LEFT, TOP);
+}
+
+function drawCircuitGrid() {
+  let startX = 170;
+  let startY = 145;
+  let cellSize = 110;
+  let nodeSize = 46;
+
+  stroke(0, 180, 0);
+  strokeWeight(3);
+
+  // horizontal wires
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 2; c++) {
+      let x1 = startX + c * cellSize + nodeSize / 2;
+      let y1 = startY + r * cellSize + nodeSize / 2;
+      let x2 = startX + (c + 1) * cellSize + nodeSize / 2;
+      let y2 = y1;
+      line(x1, y1, x2, y2);
+    }
+  }
+
+  // vertical wires
+  for (let c = 0; c < 3; c++) {
+    for (let r = 0; r < 2; r++) {
+      let x1 = startX + c * cellSize + nodeSize / 2;
+      let y1 = startY + r * cellSize + nodeSize / 2;
+      let x2 = x1;
+      let y2 = startY + (r + 1) * cellSize + nodeSize / 2;
+      line(x1, y1, x2, y2);
+    }
+  }
+
+  // nodes
+  textAlign(CENTER, CENTER);
+  textSize(14);
+
+  for (let i = 0; i < 9; i++) {
+    let r = floor(i / 3);
+    let c = i % 3;
+
+    let x = startX + c * cellSize;
+    let y = startY + r * cellSize;
+
+    if (circuitStates[i]) {
+      fill(0, 255, 0);
+      stroke(180, 255, 180);
+    } else {
+      fill(25);
+      stroke(0, 255, 0);
+    }
+
+    strokeWeight(2);
+    rect(x, y, nodeSize, nodeSize, 8);
+
+    noStroke();
+    if (circuitStates[i]) {
+      fill(0);
+      text("ON", x + nodeSize / 2, y + nodeSize / 2);
+    } else {
+      fill(0, 255, 0);
+      text("OFF", x + nodeSize / 2, y + nodeSize / 2);
+    }
+  }
+
+  textAlign(LEFT, TOP);
+}
+
+function handleCircuitClicks() {
+  // BACK button
+  if (mouseX >= 20 && mouseX <= 100 &&
+      mouseY >= 585 && mouseY <= 620) {
+    screen = "challenge one";
+    circuitMessage = "";
+    return;
+  }
+
+  // RESET button
+  if (mouseX >= 580 && mouseX <= 670 &&
+      mouseY >= 25 && mouseY <= 60) {
+    resetCircuitPuzzle();
+    return;
+  }
+
+  let startX = 170;
+  let startY = 145;
+  let cellSize = 110;
+  let nodeSize = 46;
+
+  for (let i = 0; i < 9; i++) {
+    let r = floor(i / 3);
+    let c = i % 3;
+
+    let x = startX + c * cellSize;
+    let y = startY + r * cellSize;
+
+    if (mouseX >= x && mouseX <= x + nodeSize &&
+        mouseY >= y && mouseY <= y + nodeSize) {
+      toggleCircuit(i);
+      checkCircuitSolution();
+      return;
+    }
+  }
+}
+
+function toggleCircuit(index) {
+  circuitStates[index] = !circuitStates[index];
+}
+
+function checkCircuitSolution() {
+  for (let i = 0; i < 9; i++) {
+    if (circuitStates[i] !== circuitSolution[i]) {
+      circuitMessage = "";
+      return;
+    }
+  }
+
+  circuitSolved = true;
+  circuitMessage = "STABLE OUTPUT: tictactoe";
+}
+
+function resetCircuitPuzzle() {
+  circuitStates = [
+    false, false, false,
+    false, false, false,
+    false, false, false
+  ];
+  circuitMessage = "";
+  circuitSolved = false;
 }
