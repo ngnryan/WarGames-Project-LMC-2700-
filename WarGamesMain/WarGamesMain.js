@@ -110,6 +110,31 @@ function setup() {
   dots = 1;
   index = 0;
   writing = false;
+  fitCanvasToWindow();
+  window.addEventListener('resize', fitCanvasToWindow);
+}
+
+function fitCanvasToWindow() {
+  // Page chrome — black void around the "screen"
+  Object.assign(document.documentElement.style, {
+    margin: '0', padding: '0', height: '100%', background: '#000'
+  });
+  Object.assign(document.body.style, {
+    margin: '0', padding: '0', background: '#000',
+    height: '100vh', overflow: 'hidden',
+    display: 'flex', alignItems: 'center', justifyContent: 'center'
+  });
+
+  const cnv = document.querySelector('canvas');
+  if (!cnv) return;
+
+  // Scale 700x650 to fit the viewport, preserving aspect ratio
+  const s = Math.min(window.innerWidth / 700, window.innerHeight / 650);
+
+  cnv.style.display = 'block';
+  cnv.style.width  = (700 * s) + 'px';
+  cnv.style.height = (650 * s) + 'px';
+  cnv.style.imageRendering = 'pixelated'; // chunky CRT pixels — drop this for smooth scaling
 }
 
 function draw() {
