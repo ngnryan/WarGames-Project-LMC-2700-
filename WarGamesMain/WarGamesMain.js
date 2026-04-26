@@ -11,19 +11,35 @@ var backimg;
 var scaleMult;
 var clicked;
 var dots;
-var texts = ["GREETINGS PROFESSOR FALKEN", "SHALL WE PLAY A GAME?"];
+var texts = ["BOOT SEQUENCE COMPLETE", "OPENING DESKTOP"];
 var index;
 var displayText;
 var writing;
+var loadingStartFrame;
 var textInput = "";
 var myFont;
 
-/*************LOBBY AND SUCCESS****************/
-let screen = "lobby";
+/*************DESKTOP / TERMINAL****************/
+let screen = "desktop";
 let typedText = "";
 let correctPassword = "open123";
 let message = "";
 let newspaperBuffer = null;
+let challengeInputs = {
+  challengeOne: "",
+  challengeTwo: "",
+  challengeThree: ""
+};
+let challengeMessages = {
+  challengeOne: "",
+  challengeTwo: "",
+  challengeThree: ""
+};
+let challengeSolved = {
+  challengeOne: false,
+  challengeTwo: false,
+  challengeThree: false
+};
 
 /**************PIGEON CIPHER*******************/
 let images = [];
@@ -52,27 +68,43 @@ let deskNewspaper = {
   x: 70, y: 430, w: 115, h: 78, hovered: false
 };
 
-/**************GAME SELECT****************/
+/**************TERMINAL SELECT****************/
 let gameSelectInput = "";
 let gameSelectMessage = "";
 let selectedGame = "";
 
-const GAME_BANK = [
-  "FALKEN'S MAZE",
-  "BLACK JACK",
-  "GIN RUMMY",
-  "HEARTS",
-  "BRIDGE",
-  "CHECKERS",
-  "CHESS",
-  "POKER",
-  "FIGHTER COMBAT",
-  "GUERRILLA ENGAGEMENT",
-  "DESERT WARFARE",
-  "AIR-TO-GROUND ACTIONS",
-  "THEATERWIDE TACTICAL WARFARE",
-  "GLOBAL THERMONUCLEAR WAR",
+const CHALLENGE_BANK = [
+  {
+    label: "Challenge One",
+    screen: "challengeOne",
+    implemented: true,
+    answer: "GEORGIA INSTITUTE OF TECHNOLOGY",
+    aliases: ["CHALLENGE ONE", "CHALLENGE 1", "ONE", "1"]
+  },
+  {
+    label: "Challenge Two",
+    screen: "challengeTwo",
+    implemented: true,
+    answer: "PREPARE TO DIE",
+    aliases: ["CHALLENGE TWO", "CHALLENGE 2", "TWO", "2"]
+  },
+  {
+    label: "Challenge Three",
+    screen: "challengeThree",
+    implemented: true,
+    answer: "SILENCE",
+    aliases: ["CHALLENGE THREE", "CHALLENGE 3", "THREE", "3"]
+  },
+  {
+    label: "Challenge Four",
+    screen: "gameLoaded",
+    implemented: false,
+    aliases: ["CHALLENGE FOUR", "CHALLENGE 4", "FOUR", "4"]
+  }
 ];
+
+const CHALLENGE_ONE_SCRAMBLE = "GROAIGE TITSNUIET FO YLONHCOGET";
+const CHALLENGE_TWO_CIPHER = "VDDVNDD LR ZTD";
 
 // ============================================================
 //  THEME
@@ -86,6 +118,7 @@ const C_GREEN_DIM   = [0, 140, 45];
 const C_GREEN_FAINT = [0, 80, 28];
 const C_AMBER       = [255, 180, 60];
 const C_RED         = [255, 70, 70];
+const TITLE_LOADING_FRAMES = 390;
 
 function crtGlow(strength) {
   let s = strength === undefined ? 0.6 : strength;
@@ -124,6 +157,7 @@ function setup() {
   dots = 1;
   index = 0;
   writing = false;
+  loadingStartFrame = null;
 
   fitCanvasToWindow();
   window.addEventListener('resize', fitCanvasToWindow);
@@ -227,6 +261,9 @@ function titleScreen() {
       scaleMult += 0.1;
     } else {
       if (loading) {
+        if (loadingStartFrame === null) {
+          loadingStartFrame = frameCount;
+        }
         screenCol = "rgb(2, 10, 4)";
 
         glowColor(80, 255, 120, 12);
@@ -245,32 +282,19 @@ function titleScreen() {
         }
         text(".".repeat(dots), 0, -3);
 
-        if (frameCount == 480) loading = false;
-      } else {
-        glowColor(80, 255, 120, 16);
-        fill(110, 255, 145);
-        textAlign(LEFT, CENTER);
-        textSize(3);
-
-        if (frameCount % 10 == 0) {
-          if (index <= texts[1].length) {
-            displayText = texts[1].substring(0, index++);
-            if (index < texts[1].length) displayText = displayText + "_";
-          } else {
-            writing = true;
-          }
-        }
-        text(displayText || "", -25, -20);
-
-        if (writing) {
-          let cursor = (frameCount % 60 < 30) ? "_" : " ";
-          text("> " + textInput + cursor, -25, -13);
+        if (frameCount - loadingStartFrame >= TITLE_LOADING_FRAMES) {
+          loading = false;
         }
       }
     }
   }
 
   pop();
+
+  if (clicked && !loading) {
+    state = 1;
+    screen = "desktop";
+  }
 }
 
 
@@ -280,28 +304,26 @@ function titleScreen() {
 function successlobby() {
   background(C_BG[0], C_BG[1], C_BG[2]);
 
-  if (screen === "gameSelect") {
+  if (screen === "desktop") {
+    drawDesktopHome();
+  } else if (screen === "clueOne") {
+    drawClueAppScreen("APP I // CLUE FILE", ["UNSCRAMBLE"]);
+  } else if (screen === "clueTwo") {
+    drawClueAppScreen("APP II // CLUE FILE", ["AFFINE CIPHER", "(4x + 10) % 26"]);
+  } else if (screen === "clueThree") {
+    drawClueAppScreen("APP III // CLUE FILE", ["BE QUIET,", "LISTEN CLOSELY"]);
+  } else if (screen === "clueFour") {
+    drawClueAppScreen("APP IV // CLUE FILE", ["NO CLUE AVAILABLE"]);
+  } else if (screen === "gameSelect") {
     drawGameSelect();
   } else if (screen === "gameLoaded") {
     drawGameLoaded();
-  } else if (screen === "lobby") {
-    drawLobbyBackground();
-    drawDesk();
-    drawDeskNewspaper();
-    updateNewspaperHover();
-    drawDefconSign();
-    drawPigeonCipherNote();
-    drawLobbyStatusBar();
-  } else if (screen === "challenge one") {
-    drawPasswordScreen();
-  } else if (screen === "success") {
-    drawSuccessScreen();
-  } else if (screen === "newspaper") {
-    drawNewspaperScreen();
-  } else if (screen === "finalpuzzle") {
-    drawPigeonCipher();
-  } else if (screen === "circuits") {
-    drawCircuitsPuzzle();
+  } else if (screen === "challengeOne") {
+    drawChallengeOne();
+  } else if (screen === "challengeTwo") {
+    drawChallengeTwo();
+  } else if (screen === "challengeThree") {
+    drawChallengeThree();
   }
 }
 
@@ -398,14 +420,296 @@ function drawTermButton(x, y, w, h, label, opts) {
   pop();
 }
 
+function normalizePhrase(str) {
+  return str.trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+function findChallengeByInput(input) {
+  let normalized = normalizePhrase(input);
+  if (!normalized) return null;
+
+  return CHALLENGE_BANK.find(function (challenge) {
+    return challenge.aliases.indexOf(normalized) !== -1;
+  }) || null;
+}
+
+function getDesktopApps() {
+  return [
+    { label: "TERMINAL", screen: "gameSelect", x: 60,  y: 125, w: 170, h: 130, subtitle: "Challenge access" },
+    { label: "I",        screen: "clueOne",   x: 280, y: 125, w: 130, h: 130, subtitle: "Clue file" },
+    { label: "II",       screen: "clueTwo",   x: 460, y: 125, w: 130, h: 130, subtitle: "Clue file" },
+    { label: "III",      screen: "clueThree", x: 150, y: 320, w: 130, h: 130, subtitle: "Clue file" },
+    { label: "IV",       screen: "clueFour",  x: 380, y: 320, w: 130, h: 130, subtitle: "Reserved" }
+  ];
+}
+
+function drawDesktopHome() {
+  background(C_BG[0], C_BG[1], C_BG[2]);
+  drawTerminalFrame();
+  drawTerminalHeader("W.O.P.R. // HOME DESKTOP", "[ ONLINE ]");
+
+  push();
+  stroke(0, 70, 24, 70);
+  strokeWeight(0.4);
+  for (let x = 35; x < width; x += 35) line(x, 85, x, height - 75);
+  for (let y = 100; y < height - 65; y += 35) line(25, y, width - 25, y);
+  pop();
+
+  push();
+  crtGlow(0.4);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textFont(myFont);
+  textAlign(LEFT, TOP);
+  textSize(18);
+  text("> SELECT AN APPLICATION.", 50, 96);
+  noGlow();
+  pop();
+
+  let apps = getDesktopApps();
+  for (let i = 0; i < apps.length; i++) {
+    drawDesktopApp(apps[i]);
+  }
+
+  drawTerminalFooter("[ CLICK ] OPEN APPLICATION",
+                     "TERMINAL + 4 CLUE FILES");
+}
+
+function drawDesktopApp(app) {
+  let hover = mouseX >= app.x && mouseX <= app.x + app.w &&
+              mouseY >= app.y && mouseY <= app.y + app.h;
+
+  push();
+  rectMode(CORNER);
+
+  noStroke();
+  fill(0, 0, 0, 80);
+  rect(app.x + 6, app.y + 6, app.w, app.h, 4);
+
+  noStroke();
+  fill(0, hover ? 46 : 32, hover ? 18 : 14);
+  rect(app.x, app.y, app.w, app.h, 4);
+
+  if (hover) {
+    crtGlow(0.8);
+    stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+    strokeWeight(2);
+  } else {
+    crtGlow(0.35);
+    stroke(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
+    strokeWeight(1.2);
+  }
+  noFill();
+  rect(app.x, app.y, app.w, app.h, 4);
+  noGlow();
+
+  noStroke();
+  fill(0, 22, 10);
+  rect(app.x + 16, app.y + 16, app.w - 32, 54, 3);
+
+  stroke(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  strokeWeight(1);
+  line(app.x + 25, app.y + 35, app.x + app.w - 25, app.y + 35);
+  line(app.x + 25, app.y + 48, app.x + app.w - 25, app.y + 48);
+
+  noStroke();
+  crtGlow(0.55);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textFont(myFont);
+  textAlign(CENTER, CENTER);
+  textSize(app.label === "TERMINAL" ? 24 : 36);
+  text(app.label, app.x + app.w / 2, app.y + 96);
+
+  textSize(13);
+  fill(C_GREEN[0], C_GREEN[1], C_GREEN[2]);
+  text(app.subtitle.toUpperCase(), app.x + app.w / 2, app.y + 116);
+  noGlow();
+  pop();
+}
+
+function drawClueAppScreen(title, lines) {
+  background(C_BG[0], C_BG[1], C_BG[2]);
+  drawTerminalFrame();
+  drawTerminalHeader(title, "[ DESKTOP APP ]");
+
+  push();
+  noStroke();
+  fill(0, 35, 15);
+  rect(60, 150, width - 120, 250);
+  stroke(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  strokeWeight(1);
+  noFill();
+  rect(60, 150, width - 120, 250);
+  pop();
+
+  push();
+  textFont(myFont);
+  textAlign(CENTER, CENTER);
+  crtGlow(0.65);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textSize(30);
+  for (let i = 0; i < lines.length; i++) {
+    text(lines[i], width / 2, 240 + i * 42);
+  }
+  noGlow();
+  pop();
+
+  drawTerminalFooter("[ CLICK ] RETURN TO DESKTOP", "");
+}
+
+function drawChallengeInputBox(challengeId, y) {
+  push();
+  noFill();
+  stroke(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  strokeWeight(1);
+  rect(45, y, width - 90, 48);
+
+  noStroke();
+  crtGlow(0.5);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textFont(myFont);
+  textSize(24);
+  textAlign(LEFT, TOP);
+  let cursor = (frameCount % 60 < 30) ? "_" : " ";
+  text("> " + challengeInputs[challengeId] + cursor, 55, y + 9);
+  noGlow();
+  pop();
+}
+
+function drawChallengeFeedback(challengeId, y) {
+  let feedback = challengeMessages[challengeId];
+  if (!feedback) return;
+
+  push();
+  textFont(myFont);
+  textAlign(LEFT, TOP);
+  textSize(18);
+
+  if (challengeSolved[challengeId]) {
+    crtGlow(0.5);
+    fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  } else {
+    glowColor(255, 70, 70, 10);
+    fill(C_RED[0], C_RED[1], C_RED[2]);
+  }
+  text(feedback, 50, y);
+  noGlow();
+  pop();
+}
+
+function drawChallengeOne() {
+  background(C_BG[0], C_BG[1], C_BG[2]);
+  drawTerminalFrame();
+  drawTerminalHeader("CHALLENGE ONE // UNSCRAMBLE", "[ APP I ]");
+
+  push();
+  textFont(myFont);
+  textAlign(LEFT, TOP);
+  crtGlow(0.4);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textSize(18);
+  text("> UNSCRAMBLE THE PHRASE BELOW.", 50, 100);
+  text("> ENTER THE FULL PHRASE TO CONTINUE.", 50, 126);
+  noGlow();
+
+  glowColor(255, 180, 60, 12);
+  fill(C_AMBER[0], C_AMBER[1], C_AMBER[2]);
+  textSize(30);
+  textAlign(CENTER, CENTER);
+  text(CHALLENGE_ONE_SCRAMBLE, width / 2, 220);
+  noGlow();
+  pop();
+
+  drawChallengeInputBox("challengeOne", 280);
+  drawChallengeFeedback("challengeOne", 345);
+  drawTerminalFooter("[ ESC ] RETURN TO TERMINAL", "ENTER TO SUBMIT");
+}
+
+function drawAffineAlphabetGuide(topY) {
+  push();
+  textFont(myFont);
+  textAlign(CENTER, CENTER);
+
+  for (let i = 0; i < 26; i++) {
+    let x = 38 + i * 24;
+
+    crtGlow(0.25);
+    fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+    textSize(15);
+    text(String.fromCharCode(65 + i), x, topY);
+
+    noGlow();
+    fill(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+    textSize(11);
+    text(i + 1, x, topY + 20);
+  }
+  pop();
+}
+
+function drawChallengeTwo() {
+  background(C_BG[0], C_BG[1], C_BG[2]);
+  drawTerminalFrame();
+  drawTerminalHeader("CHALLENGE TWO // AFFINE CIPHER", "[ APP II ]");
+
+  drawAffineAlphabetGuide(108);
+
+  push();
+  textFont(myFont);
+  textAlign(LEFT, TOP);
+  crtGlow(0.35);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textSize(18);
+  text("> DECODE THIS MESSAGE.", 50, 170);
+  text("> USE y = (4x + 10) % 26 WITH A = 1.", 50, 196);
+  noGlow();
+
+  glowColor(255, 180, 60, 12);
+  fill(C_AMBER[0], C_AMBER[1], C_AMBER[2]);
+  textAlign(CENTER, CENTER);
+  textSize(34);
+  text(CHALLENGE_TWO_CIPHER, width / 2, 275);
+  noGlow();
+  pop();
+
+  drawChallengeInputBox("challengeTwo", 335);
+  drawChallengeFeedback("challengeTwo", 400);
+  drawTerminalFooter("[ ESC ] RETURN TO TERMINAL", "ENTER TO SUBMIT");
+}
+
+function drawChallengeThree() {
+  background(C_BG[0], C_BG[1], C_BG[2]);
+  drawTerminalFrame();
+  drawTerminalHeader("CHALLENGE THREE // RIDDLE", "[ APP III ]");
+
+  push();
+  textFont(myFont);
+  textAlign(LEFT, TOP);
+  crtGlow(0.4);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textSize(18);
+  text("> ANSWER THE RIDDLE.", 50, 100);
+  noGlow();
+
+  glowColor(255, 180, 60, 12);
+  fill(C_AMBER[0], C_AMBER[1], C_AMBER[2]);
+  textAlign(CENTER, CENTER);
+  textSize(32);
+  text("WHAT LEAVES AS SOON AS\nYOU SAY ITS NAME?", width / 2, 230);
+  noGlow();
+  pop();
+
+  drawChallengeInputBox("challengeThree", 305);
+  drawChallengeFeedback("challengeThree", 370);
+  drawTerminalFooter("[ ESC ] RETURN TO TERMINAL", "ENTER TO SUBMIT");
+}
+
 
 // ============================================================
-//  GAME SELECT — first puzzle: pick a valid game from the list
+//  TERMINAL SELECT
 // ============================================================
 function drawGameSelect() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
-  drawTerminalHeader("W.O.P.R. // GAME LIBRARY", "[ DEFCON 5 ]");
+  drawTerminalHeader("W.O.P.R. // TERMINAL", "[ READY ]");
 
   push();
   textFont(myFont);
@@ -414,11 +718,10 @@ function drawGameSelect() {
   fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
   textAlign(LEFT, TOP);
   textSize(18);
-  text("> GREETINGS, PROFESSOR FALKEN.", 50, 100);
-  text("> WHAT GAME WOULD YOU LIKE TO PLAY?", 50, 126);
+  text("> GREETINGS, USER.", 50, 100);
+  text("> WHAT WOULD YOU LIKE TO DO?", 50, 126);
   noGlow();
 
-  // Available games panel
   push();
   noStroke();
   fill(0, 40, 18);
@@ -433,22 +736,21 @@ function drawGameSelect() {
   fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
   textSize(14);
   textAlign(LEFT, TOP);
-  text("AVAILABLE GAMES:", 60, 175);
+  text("AVAILABLE CHALLENGES:", 60, 175);
   noGlow();
 
-  textSize(14);
-  let colW = (width - 140) / 2;
-  for (let i = 0; i < GAME_BANK.length; i++) {
-    let col = i < 7 ? 0 : 1;
-    let row = i % 7;
+  textSize(18);
+  let colW = (width - 150) / 2;
+  for (let i = 0; i < CHALLENGE_BANK.length; i++) {
+    let col = i < 2 ? 0 : 1;
+    let row = i % 2;
     let gx = 70 + col * colW;
-    let gy = 200 + row * 28;
+    let gy = 210 + row * 54;
 
     fill(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
-    text("> " + GAME_BANK[i], gx, gy);
+    text("> " + CHALLENGE_BANK[i].label.toUpperCase(), gx, gy);
   }
 
-  // Input prompt box
   noFill();
   stroke(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
   strokeWeight(1);
@@ -462,7 +764,6 @@ function drawGameSelect() {
   text("> " + gameSelectInput + cursor, 55, 470);
   noGlow();
 
-  // Response message
   textSize(16);
   if (gameSelectMessage === "INVALID SELECTION") {
     glowColor(255, 70, 70, 10);
@@ -471,7 +772,7 @@ function drawGameSelect() {
     noGlow();
     fill(200, 50, 50);
     textSize(13);
-    text("> GAME NOT IN LIBRARY. TRY AGAIN.", 50, 548);
+    text("> CHALLENGE NOT IN DIRECTORY. TRY AGAIN.", 50, 548);
   } else if (gameSelectMessage) {
     crtGlow(0.4);
     fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
@@ -480,18 +781,18 @@ function drawGameSelect() {
   }
   pop();
 
-  drawTerminalFooter("> TYPE A GAME NAME AND PRESS ENTER",
-                     "BACKSPACE TO EDIT");
+  drawTerminalFooter("> TYPE A CHALLENGE NAME AND PRESS ENTER",
+                     "ESC TO DESKTOP");
 }
 
 
 // ============================================================
-//  GAME LOADED — confirmation after valid selection
+//  PLACEHOLDER CHALLENGES
 // ============================================================
 function drawGameLoaded() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
-  drawTerminalHeader("W.O.P.R. // GAME LOADED", "[ DEFCON 5 ]");
+  drawTerminalHeader("W.O.P.R. // CHALLENGE LOADING", "[ PLACEHOLDER ]");
 
   push();
   textFont(myFont);
@@ -515,10 +816,10 @@ function drawGameLoaded() {
 
   textSize(14);
   fill(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
-  text("(stub — game module not yet implemented)", width / 2, 380);
+  text("(stub — challenge module not yet implemented)", width / 2, 380);
   pop();
 
-  drawTerminalFooter("[ ESC ] RETURN TO GAME SELECT", "");
+  drawTerminalFooter("[ ESC ] RETURN TO TERMINAL", "");
 }
 
 
@@ -1050,7 +1351,7 @@ function drawPasswordScreen() {
 function drawSuccessScreen() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
-  drawTerminalHeader("W.O.P.R. // ACCESS GRANTED", "[ DEFCON 5 ]");
+  drawTerminalHeader("W.O.P.R. // CHALLENGE STATUS", "[ READY ]");
 
   push();
   textFont(myFont);
@@ -1060,19 +1361,19 @@ function drawSuccessScreen() {
   crtGlow(1);
   fill(110, flicker, 140);
   textSize(46);
-  text("ACCESS GRANTED", width / 2, 130);
+  text("CHALLENGE COMPLETE", width / 2, 130);
   noGlow();
 
   crtGlow(0.5);
   fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
   textSize(20);
-  text("WELCOME, PROFESSOR FALKEN.", width / 2, 180);
+  text("RETURN TO THE TERMINAL FOR THE NEXT TASK.", width / 2, 180);
   noGlow();
 
   crtGlow(0.4);
   fill(C_GREEN[0], C_GREEN[1], C_GREEN[2]);
   textSize(18);
-  text("SHALL WE PLAY A GAME?", width / 2, 210);
+  text("AVAILABLE CHALLENGES:", width / 2, 210);
   noGlow();
 
   textAlign(LEFT, TOP);
@@ -1081,29 +1382,19 @@ function drawSuccessScreen() {
   crtGlow(0.25);
 
   let games = [
-    "> FALKEN'S MAZE",
-    "> BLACK JACK",
-    "> GIN RUMMY",
-    "> HEARTS",
-    "> BRIDGE",
-    "> CHECKERS",
-    "> CHESS",
-    "> POKER",
-    "> FIGHTER COMBAT",
-    "> GUERRILLA ENGAGEMENT",
-    "> DESERT WARFARE",
-    "> AIR-TO-GROUND ACTIONS",
-    "> THEATERWIDE TACTICAL WARFARE",
-    "> GLOBAL THERMONUCLEAR WAR",
+    "> CHALLENGE ONE",
+    "> CHALLENGE TWO",
+    "> CHALLENGE THREE",
+    "> CHALLENGE FOUR",
   ];
 
   let colW = (width - 160) / 2;
   for (let i = 0; i < games.length; i++) {
-    let col = i < 7 ? 0 : 1;
-    let row = i % 7;
+    let col = i < 2 ? 0 : 1;
+    let row = i % 2;
     let gx = 80 + col * colW;
-    let gy = 260 + row * 22;
-    if (games[i] === "> GLOBAL THERMONUCLEAR WAR") {
+    let gy = 270 + row * 30;
+    if (games[i] === "> CHALLENGE FOUR") {
       let pulse = 150 + 60 * sin(frameCount * 0.12);
       fill(255, pulse, 60);
     } else {
@@ -1114,7 +1405,7 @@ function drawSuccessScreen() {
   noGlow();
   pop();
 
-  drawTerminalFooter("> SELECT A GAME", "A STRANGE GAME. THE ONLY WINNING MOVE IS NOT TO PLAY.");
+  drawTerminalFooter("> SELECT A CHALLENGE", "SOLVE THE TERMINAL TO PROCEED.");
 }
 
 
@@ -1167,7 +1458,7 @@ function drawPigeonCipher() {
     lastSwitch = millis();
     if (currentIndex >= images.length) {
       currentIndex = 0;
-      screen = "lobby";
+      screen = "desktop";
     }
   }
 }
@@ -1355,12 +1646,33 @@ function drawCircuitGrid() {
 //  USER INPUT
 // ============================================================
 function keyTyped() {
-  if (state === 0) {
-    if (writing) {
-      if (key.length === 1) {
-        textInput += key.toUpperCase();
-      }
-    }
+}
+
+function isClueScreen(screenName) {
+  return screenName === "clueOne" ||
+         screenName === "clueTwo" ||
+         screenName === "clueThree" ||
+         screenName === "clueFour";
+}
+
+function isLiveChallengeScreen(screenName) {
+  return screenName === "challengeOne" ||
+         screenName === "challengeTwo" ||
+         screenName === "challengeThree";
+}
+
+function submitChallengeAnswer(screenName) {
+  let challenge = CHALLENGE_BANK.find(function (item) {
+    return item.screen === screenName;
+  });
+  if (!challenge || !challenge.answer) return;
+
+  if (normalizePhrase(challengeInputs[screenName]) === challenge.answer) {
+    challengeSolved[screenName] = true;
+    challengeMessages[screenName] = "CORRECT. CHALLENGE COMPLETE.";
+  } else {
+    challengeSolved[screenName] = false;
+    challengeMessages[screenName] = "INCORRECT. TRY AGAIN.";
   }
 }
 
@@ -1374,55 +1686,49 @@ function mouseClicked() {
   }
 
   if (state === 1) {
-    let exitCondition = mouseX >= 30 && mouseX < 110 &&
-                        mouseY >= 600 && mouseY < 635;
-
-    if (screen === "challenge one") {
-      if (exitCondition) {
-        screen = "lobby";
-        message = "";
+    if (screen === "desktop") {
+      let apps = getDesktopApps();
+      for (let i = 0; i < apps.length; i++) {
+        let app = apps[i];
+        if (mouseX >= app.x && mouseX <= app.x + app.w &&
+            mouseY >= app.y && mouseY <= app.y + app.h) {
+          screen = app.screen;
+          return;
+        }
       }
-    } else if (screen === "lobby") {
-      if (deskNewspaper.hovered) {
-        screen = "newspaper";
-      } else {
-        screen = "challenge one";
-      }
-    } else if (screen === "newspaper") {
-      screen = "lobby";
-    } else if (screen === "circuits") {
-      handleCircuitClicks();
+    } else if (isClueScreen(screen)) {
+      screen = "desktop";
     }
   }
 }
 
 function keyPressed() {
   if (state === 0) {
-    if (keyCode === BACKSPACE) {
-      textInput = textInput.substring(0, textInput.length - 1);
-    }
-    if (keyCode === ENTER) {
-      if (textInput.toUpperCase() === "YES") {
-        state = 1;
-        screen = "gameSelect";
-      }
-    }
+    return;
   } else if (state === 1) {
-    // GAME SELECT
+    if (isClueScreen(screen) && keyCode === ESCAPE) {
+      screen = "desktop";
+      return;
+    }
+
     if (screen === "gameSelect") {
-      if (keyCode === BACKSPACE) {
+      if (keyCode === ESCAPE) {
+        screen = "desktop";
+        gameSelectMessage = "";
+        gameSelectInput = "";
+      } else if (keyCode === BACKSPACE) {
         gameSelectInput = gameSelectInput.substring(0, gameSelectInput.length - 1);
       } else if (keyCode === ENTER || keyCode === RETURN) {
-        let normalized = gameSelectInput.trim().toUpperCase();
-        let match = GAME_BANK.find(function (g) { return g.toUpperCase() === normalized; });
+        let match = findChallengeByInput(gameSelectInput);
         if (match) {
-          selectedGame = match;
-          gameSelectMessage = "GAME FOUND. LOADING...";
-          screen = "gameLoaded";
+          selectedGame = match.label.toUpperCase();
+          gameSelectMessage = match.implemented
+            ? "CHALLENGE FOUND. OPENING..."
+            : "CHALLENGE FOUND. LOADING...";
+          screen = match.screen;
           gameSelectInput = "";
         } else {
           gameSelectMessage = "INVALID SELECTION";
-          gameSelectInput = "";
         }
       } else if (key.length === 1) {
         gameSelectInput += key;
@@ -1430,7 +1736,6 @@ function keyPressed() {
       return;
     }
 
-    // GAME LOADED — ESC back
     if (screen === "gameLoaded") {
       if (keyCode === ESCAPE) {
         screen = "gameSelect";
@@ -1439,30 +1744,16 @@ function keyPressed() {
       return;
     }
 
-    // CHALLENGE ONE password screen
-    if (screen !== "challenge one") return;
+    if (!isLiveChallengeScreen(screen)) return;
 
-    if (keyCode === BACKSPACE) {
-      typedText = typedText.substring(0, typedText.length - 1);
+    if (keyCode === ESCAPE) {
+      screen = "gameSelect";
+    } else if (keyCode === BACKSPACE) {
+      challengeInputs[screen] = challengeInputs[screen].substring(0, challengeInputs[screen].length - 1);
     } else if (keyCode === ENTER || keyCode === RETURN) {
-      if (typedText === correctPassword) {
-        message = "ACCESS GRANTED";
-        screen = "success";
-      } else if (typedText === "circuits") {
-        typedText = "";
-        message = "";
-        circuitMessage = "";
-        screen = "circuits";
-      } else if (typedText === "tictactoe") {
-        currentIndex = 0;
-        lastSwitch = millis();
-        screen = "finalpuzzle";
-      } else {
-        message = "ACCESS DENIED";
-        typedText = "";
-      }
+      submitChallengeAnswer(screen);
     } else if (key.length === 1) {
-      typedText += key;
+      challengeInputs[screen] += key;
     }
   }
 }
@@ -1474,7 +1765,7 @@ function keyPressed() {
 function handleCircuitClicks() {
   if (mouseX >= 40 && mouseX <= 140 &&
       mouseY >= height - 45 && mouseY <= height - 17) {
-    screen = "challenge one";
+    screen = "challengeOne";
     circuitMessage = "";
     return;
   }
