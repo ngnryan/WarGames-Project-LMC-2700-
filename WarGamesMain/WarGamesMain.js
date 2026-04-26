@@ -1,12 +1,7 @@
 // ============================================================
 //  W.O.P.R.  —  WAR GAMES TERMINAL
-//  Enhanced visual theme: phosphor-green CRT aesthetic
-//  (Game logic unchanged from original)
+//  Phosphor-green CRT aesthetic
 // ============================================================
-
-//TODO:
-//1. Change state names to be more descriptive
-//2. The circuits game will provide a pattern, which one of the stray clues has a key for, spelling out tictactoe
 
 /*****TITLE SCREEN VARS*********/
 var state;
@@ -14,7 +9,6 @@ var loading;
 var screenCol;
 var backimg;
 var scaleMult;
-var barCount;
 var clicked;
 var dots;
 var texts = ["GREETINGS PROFESSOR FALKEN", "SHALL WE PLAY A GAME?"];
@@ -58,8 +52,30 @@ let deskNewspaper = {
   x: 70, y: 430, w: 115, h: 78, hovered: false
 };
 
+/**************GAME SELECT****************/
+let gameSelectInput = "";
+let gameSelectMessage = "";
+let selectedGame = "";
+
+const GAME_BANK = [
+  "FALKEN'S MAZE",
+  "BLACK JACK",
+  "GIN RUMMY",
+  "HEARTS",
+  "BRIDGE",
+  "CHECKERS",
+  "CHESS",
+  "POKER",
+  "FIGHTER COMBAT",
+  "GUERRILLA ENGAGEMENT",
+  "DESERT WARFARE",
+  "AIR-TO-GROUND ACTIONS",
+  "THEATERWIDE TACTICAL WARFARE",
+  "GLOBAL THERMONUCLEAR WAR",
+];
+
 // ============================================================
-//  THEME  —  phosphor-green CRT palette
+//  THEME
 // ============================================================
 const C_BG          = [4, 12, 6];
 const C_BG_PANEL    = [8, 22, 14];
@@ -72,7 +88,6 @@ const C_AMBER       = [255, 180, 60];
 const C_RED         = [255, 70, 70];
 
 function crtGlow(strength) {
-  // strength 0..1
   let s = strength === undefined ? 0.6 : strength;
   drawingContext.shadowBlur = 14 * s;
   drawingContext.shadowColor = "rgba(80, 255, 120, " + (0.85 * s) + ")";
@@ -88,7 +103,6 @@ function preload() {
   backimg = loadImage("computerscreen.png");
   myFont = loadFont("VT323-Regular.ttf");
 
-  // PIGEON CIPHER IMAGES
   images[0] = loadImage('image_D.png');
   images[1] = loadImage('image_E.png');
   images[2] = loadImage('image_F.png');
@@ -110,12 +124,12 @@ function setup() {
   dots = 1;
   index = 0;
   writing = false;
+
   fitCanvasToWindow();
   window.addEventListener('resize', fitCanvasToWindow);
 }
 
 function fitCanvasToWindow() {
-  // Page chrome — black void around the "screen"
   Object.assign(document.documentElement.style, {
     margin: '0', padding: '0', height: '100%', background: '#000'
   });
@@ -128,13 +142,11 @@ function fitCanvasToWindow() {
   const cnv = document.querySelector('canvas');
   if (!cnv) return;
 
-  // Scale 700x650 to fit the viewport, preserving aspect ratio
   const s = Math.min(window.innerWidth / 700, window.innerHeight / 650);
-
   cnv.style.display = 'block';
   cnv.style.width  = (700 * s) + 'px';
   cnv.style.height = (650 * s) + 'px';
-  cnv.style.imageRendering = 'pixelated'; // chunky CRT pixels — drop this for smooth scaling
+  cnv.style.imageRendering = 'pixelated';
 }
 
 function draw() {
@@ -149,25 +161,22 @@ function draw() {
 
 
 // ============================================================
-//  CRT OVERLAY — scanlines + vignette, applied over everything
+//  CRT OVERLAY
 // ============================================================
 function drawCRTOverlay() {
   push();
   resetMatrix();
 
-  // horizontal scanlines
   noStroke();
   for (let y = 0; y < height; y += 3) {
     fill(0, 0, 0, 55);
     rect(0, y, width, 1);
   }
 
-  // occasional "rolling" bright band
   let bandY = (frameCount * 2) % (height + 80) - 40;
   fill(120, 255, 140, 10);
   rect(0, bandY, width, 30);
 
-  // vignette
   let g = drawingContext.createRadialGradient(
     width / 2, height / 2, height * 0.25,
     width / 2, height / 2, height * 0.85
@@ -177,7 +186,6 @@ function drawCRTOverlay() {
   drawingContext.fillStyle = g;
   drawingContext.fillRect(0, 0, width, height);
 
-  // edge tint — a faint green wash over the whole frame for cohesion
   fill(0, 60, 20, 14);
   rect(0, 0, width, height);
 
@@ -195,7 +203,6 @@ function titleScreen() {
 
   background(6, 8, 12);
 
-  // Faint room ambience before zoom
   if (!clicked || scaleMult < 2) {
     noStroke();
     fill(10, 14, 20);
@@ -220,7 +227,6 @@ function titleScreen() {
       scaleMult += 0.1;
     } else {
       if (loading) {
-        // Fully zoomed — we are "inside" the CRT
         screenCol = "rgb(2, 10, 4)";
 
         glowColor(80, 255, 120, 12);
@@ -269,12 +275,16 @@ function titleScreen() {
 
 
 // ============================================================
-//  LOBBY / ROUTING
+//  ROUTING
 // ============================================================
 function successlobby() {
   background(C_BG[0], C_BG[1], C_BG[2]);
 
-  if (screen === "lobby") {
+  if (screen === "gameSelect") {
+    drawGameSelect();
+  } else if (screen === "gameLoaded") {
+    drawGameLoaded();
+  } else if (screen === "lobby") {
     drawLobbyBackground();
     drawDesk();
     drawDeskNewspaper();
@@ -390,17 +400,138 @@ function drawTermButton(x, y, w, h, label, opts) {
 
 
 // ============================================================
+//  GAME SELECT — first puzzle: pick a valid game from the list
+// ============================================================
+function drawGameSelect() {
+  background(C_BG[0], C_BG[1], C_BG[2]);
+  drawTerminalFrame();
+  drawTerminalHeader("W.O.P.R. // GAME LIBRARY", "[ DEFCON 5 ]");
+
+  push();
+  textFont(myFont);
+
+  crtGlow(0.5);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textAlign(LEFT, TOP);
+  textSize(18);
+  text("> GREETINGS, PROFESSOR FALKEN.", 50, 100);
+  text("> WHAT GAME WOULD YOU LIKE TO PLAY?", 50, 126);
+  noGlow();
+
+  // Available games panel
+  push();
+  noStroke();
+  fill(0, 40, 18);
+  rect(45, 165, width - 90, 270);
+  stroke(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  strokeWeight(1);
+  noFill();
+  rect(45, 165, width - 90, 270);
+  pop();
+
+  crtGlow(0.4);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textSize(14);
+  textAlign(LEFT, TOP);
+  text("AVAILABLE GAMES:", 60, 175);
+  noGlow();
+
+  textSize(14);
+  let colW = (width - 140) / 2;
+  for (let i = 0; i < GAME_BANK.length; i++) {
+    let col = i < 7 ? 0 : 1;
+    let row = i % 7;
+    let gx = 70 + col * colW;
+    let gy = 200 + row * 28;
+
+    fill(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
+    text("> " + GAME_BANK[i], gx, gy);
+  }
+
+  // Input prompt box
+  noFill();
+  stroke(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  strokeWeight(1);
+  rect(45, 460, width - 90, 48);
+
+  noStroke();
+  crtGlow(0.5);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textSize(22);
+  let cursor = (frameCount % 60 < 30) ? "_" : " ";
+  text("> " + gameSelectInput + cursor, 55, 470);
+  noGlow();
+
+  // Response message
+  textSize(16);
+  if (gameSelectMessage === "INVALID SELECTION") {
+    glowColor(255, 70, 70, 10);
+    fill(C_RED[0], C_RED[1], C_RED[2]);
+    text(gameSelectMessage, 50, 525);
+    noGlow();
+    fill(200, 50, 50);
+    textSize(13);
+    text("> GAME NOT IN LIBRARY. TRY AGAIN.", 50, 548);
+  } else if (gameSelectMessage) {
+    crtGlow(0.4);
+    fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+    text(gameSelectMessage, 50, 525);
+    noGlow();
+  }
+  pop();
+
+  drawTerminalFooter("> TYPE A GAME NAME AND PRESS ENTER",
+                     "BACKSPACE TO EDIT");
+}
+
+
+// ============================================================
+//  GAME LOADED — confirmation after valid selection
+// ============================================================
+function drawGameLoaded() {
+  background(C_BG[0], C_BG[1], C_BG[2]);
+  drawTerminalFrame();
+  drawTerminalHeader("W.O.P.R. // GAME LOADED", "[ DEFCON 5 ]");
+
+  push();
+  textFont(myFont);
+  textAlign(CENTER, CENTER);
+
+  let flicker = (frameCount % 37 < 2) ? 150 : 255;
+  crtGlow(1);
+  fill(110, flicker, 140);
+  textSize(34);
+  text("LOADING: " + selectedGame, width / 2, 200);
+  noGlow();
+
+  crtGlow(0.4);
+  fill(C_GREEN[0], C_GREEN[1], C_GREEN[2]);
+  textSize(18);
+  text("INITIALIZING MODULE...", width / 2, 270);
+
+  let d = (floor(frameCount / 20) % 4);
+  text(".".repeat(d), width / 2, 300);
+  noGlow();
+
+  textSize(14);
+  fill(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  text("(stub — game module not yet implemented)", width / 2, 380);
+  pop();
+
+  drawTerminalFooter("[ ESC ] RETURN TO GAME SELECT", "");
+}
+
+
+// ============================================================
 //  LOBBY BACKGROUND & CHROME
 // ============================================================
 function drawLobbyBackground() {
   push();
-  // subtle grid
   stroke(0, 70, 24, 70);
   strokeWeight(0.4);
   for (let x = 0; x < width; x += 35) line(x, 0, x, height);
   for (let y = 0; y < height; y += 35) line(0, y, width, y);
 
-  // top header bar
   noStroke();
   fill(0, 50, 22);
   rect(0, 0, width, 24);
@@ -434,7 +565,6 @@ function drawLobbyStatusBar() {
   strokeWeight(1);
   line(0, height - 24, width, height - 24);
 
-  // blinking REC dot
   noStroke();
   let blink = (frameCount % 60 < 30);
   if (blink) {
@@ -468,13 +598,11 @@ function drawDesk() {
   push();
   let s = 1.66;
 
-  // Soft floor wash so the desk sits in space
   noStroke();
   fill(0, 25, 10, 60);
   rectMode(CORNER);
   rect(0, 515, width, height - 515);
 
-  // The desk wireframe — in phosphor green with glow
   crtGlow(0.5);
   stroke(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
   strokeWeight(1.4);
@@ -487,10 +615,8 @@ function drawDesk() {
   line(0 * s, 310 * s, 400 * s, 310 * s);
   line(300 * s, 330 * s, 300 * s, 400 * s);
 
-  // drawer
   rect(335 * s, 350 * s, 50 * s, 10 * s);
 
-  // wood-grain hints on the desktop — subtle horizontal ticks
   noGlow();
   stroke(C_GREEN_FAINT[0], C_GREEN_FAINT[1], C_GREEN_FAINT[2]);
   strokeWeight(0.6);
@@ -499,7 +625,6 @@ function drawDesk() {
     line(x + 6, 470, x + 22, 470);
   }
 
-  // desk edge highlight
   crtGlow(0.3);
   stroke(C_GREEN[0], C_GREEN[1], C_GREEN[2]);
   strokeWeight(0.6);
@@ -511,7 +636,7 @@ function drawDesk() {
 
 
 // ============================================================
-//  DEFCON SIGN — kept colorful but wrapped in CRT chrome
+//  DEFCON SIGN
 // ============================================================
 function drawDefconSign() {
   push();
@@ -520,13 +645,11 @@ function drawDefconSign() {
   let signX = width / 2;
   let signY = 50;
 
-  // backplate panel
   noStroke();
   fill(8, 18, 12);
   rectMode(CENTER);
   rect(signX, signY + 10, 380, 90, 4);
 
-  // frame
   crtGlow(0.4);
   stroke(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
   strokeWeight(1.2);
@@ -534,7 +657,6 @@ function drawDefconSign() {
   rect(signX, signY + 10, 380, 90, 4);
   noGlow();
 
-  // Small bracket screws
   noStroke();
   fill(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
   ellipse(signX - 185, signY - 30, 4, 4);
@@ -542,7 +664,6 @@ function drawDefconSign() {
   ellipse(signX - 185, signY + 50, 4, 4);
   ellipse(signX + 185, signY + 50, 4, 4);
 
-  // DEFCON label
   glowColor(80, 255, 120, 8);
   fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
   textFont(myFont);
@@ -552,14 +673,13 @@ function drawDefconSign() {
   text("DEFENSE CONDITION", signX, signY - 14);
   noGlow();
 
-  // The 5 level boxes
   let levels = [5, 4, 3, 2, 1];
   let boxColors = [
-    [50, 120, 220],  // 5 - blue (ACTIVE)
-    [30, 180, 40],   // 4 - green
-    [220, 200, 0],   // 3 - yellow
-    [200, 70, 60],   // 2 - red
-    [240, 240, 240], // 1 - white
+    [50, 120, 220],
+    [30, 180, 40],
+    [220, 200, 0],
+    [200, 70, 60],
+    [240, 240, 240],
   ];
 
   let boxW = 54;
@@ -570,7 +690,6 @@ function drawDefconSign() {
   for (let i = 0; i < 5; i++) {
     let bx = startX + i * 64;
 
-    // Outer glow for highlighted (level 5)
     if (i === 0) {
       let pulse = 0.6 + 0.4 * sin(frameCount * 0.1);
       drawingContext.shadowBlur = 22 * pulse;
@@ -583,13 +702,11 @@ function drawDefconSign() {
     rect(bx, boxY, boxW, boxH, 3);
     noGlow();
 
-    // dim overlay for non-active levels
     if (i !== 0) {
       fill(0, 0, 0, 140);
       noStroke();
       rect(bx, boxY, boxW, boxH, 3);
 
-      // fake CRT lines within each inactive box
       stroke(0, 0, 0, 40);
       strokeWeight(0.5);
       for (let ly = -boxH/2 + 2; ly < boxH/2; ly += 3) {
@@ -597,7 +714,6 @@ function drawDefconSign() {
       }
     }
 
-    // Number
     noStroke();
     if (i === 0) {
       glowColor(255, 255, 255, 10);
@@ -615,7 +731,6 @@ function drawDefconSign() {
 
   textStyle(NORMAL);
 
-  // status line under sign
   glowColor(80, 255, 120, 6);
   fill(C_GREEN[0], C_GREEN[1], C_GREEN[2]);
   textFont(myFont);
@@ -629,7 +744,7 @@ function drawDefconSign() {
 
 
 // ============================================================
-//  PIGEON CIPHER STICKY NOTE (physical object, keeps paper colors)
+//  PIGEON CIPHER STICKY NOTE
 // ============================================================
 function drawPigeonCipherNote() {
   push();
@@ -640,30 +755,25 @@ function drawPigeonCipherNote() {
   let nw = 155;
   let nh = 195;
 
-  // drop shadow
   noStroke();
   fill(0, 0, 0, 80);
   rect(nx + 5, ny + 5, nw, nh, 2);
 
-  // paper body
   fill(255, 240, 110);
   stroke(180, 165, 50);
   strokeWeight(0.8);
   rect(nx, ny, nw, nh, 2);
 
-  // green CRT wash over paper (since we're "on a monitor")
   noStroke();
   fill(0, 90, 30, 35);
   rect(nx, ny, nw, nh, 2);
 
-  // folded corner
   fill(210, 195, 70);
   noStroke();
   triangle(nx + nw - 14, ny, nx + nw, ny, nx + nw, ny + 14);
   fill(170, 155, 45);
   triangle(nx + nw - 14, ny, nx + nw, ny + 14, nx + nw - 14, ny + 14);
 
-  // Title
   fill(40, 28, 0);
   noStroke();
   textFont("Arial");
@@ -672,7 +782,6 @@ function drawPigeonCipherNote() {
   textAlign(CENTER, TOP);
   text("CIPHER KEY", nx + nw / 2, ny + 6);
 
-  // Grid
   let gridX = nx + 12;
   let gridY = ny + 22;
   let cellW = 42;
@@ -730,7 +839,6 @@ function drawPigeonCipherNote() {
     text(cell.letters, cx, cy + 18);
   }
 
-  // "tape" strip at top
   fill(255, 255, 255, 120);
   noStroke();
   rect(nx + 50, ny - 6, 55, 14);
@@ -740,7 +848,7 @@ function drawPigeonCipherNote() {
 
 
 // ============================================================
-//  NEWSPAPER ON DESK (physical object, same paper colors)
+//  NEWSPAPER ON DESK
 // ============================================================
 function updateNewspaperHover() {
   deskNewspaper.hovered =
@@ -768,7 +876,6 @@ function drawDeskNewspaper() {
   strokeWeight(0.8);
   rect(nx, ny, nw, nh);
 
-  // green CRT wash
   noStroke();
   fill(0, 90, 30, 40);
   rect(nx, ny, nw, nh);
@@ -811,7 +918,6 @@ function drawDeskNewspaper() {
   line(nx + 4 + colW,         ny + 35, nx + 4 + colW,         ny + nh - 4);
   line(nx + 4 + 2 * colW + 3, ny + 35, nx + 4 + 2 * colW + 3, ny + nh - 4);
 
-  // hover halo — terminal green
   if (deskNewspaper.hovered) {
     crtGlow(0.8);
     noFill();
@@ -820,20 +926,15 @@ function drawDeskNewspaper() {
     rect(nx - 3, ny - 3, nw + 6, nh + 6);
     noGlow();
 
-    // corner brackets
     stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
     strokeWeight(2);
     let b = 8;
-    // TL
     line(nx - 5, ny - 5, nx - 5 + b, ny - 5);
     line(nx - 5, ny - 5, nx - 5,     ny - 5 + b);
-    // TR
     line(nx + nw + 5, ny - 5, nx + nw + 5 - b, ny - 5);
     line(nx + nw + 5, ny - 5, nx + nw + 5,     ny - 5 + b);
-    // BL
     line(nx - 5, ny + nh + 5, nx - 5 + b, ny + nh + 5);
     line(nx - 5, ny + nh + 5, nx - 5,     ny + nh + 5 - b);
-    // BR
     line(nx + nw + 5, ny + nh + 5, nx + nw + 5 - b, ny + nh + 5);
     line(nx + nw + 5, ny + nh + 5, nx + nw + 5,     ny + nh + 5 - b);
   }
@@ -863,7 +964,6 @@ function drawNewspaperScreen() {
   let ny = 92;
   image(newspaperBuffer, nx, ny, targetW, targetH);
 
-  // green CRT wash over paper
   push();
   noStroke();
   fill(0, 120, 40, 45);
@@ -893,7 +993,6 @@ function drawPasswordScreen() {
   text("> SYSTEM: AUTHORIZED PERSONNEL ONLY.", 50, 126);
   text("> ENTER PASSPHRASE OR MODULE CODE.", 50, 152);
 
-  // prompt box
   noFill();
   stroke(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
   strokeWeight(1);
@@ -905,13 +1004,11 @@ function drawPasswordScreen() {
   let cursor = (frameCount % 60 < 30) ? "_" : " ";
   text("> " + typedText + cursor, 55, 220);
 
-  // response message
   textSize(20);
   if (message === "ACCESS DENIED") {
     glowColor(255, 70, 70, 10);
     fill(C_RED[0], C_RED[1], C_RED[2]);
     text(message, 50, 280);
-    // mock error details
     noGlow();
     fill(200, 50, 50);
     textSize(14);
@@ -922,7 +1019,6 @@ function drawPasswordScreen() {
   }
   noGlow();
 
-  // meta info panel
   stroke(C_GREEN_FAINT[0], C_GREEN_FAINT[1], C_GREEN_FAINT[2]);
   strokeWeight(1);
   line(45, 380, width - 45, 380);
@@ -936,7 +1032,6 @@ function drawPasswordScreen() {
   text("AUTH MODE ...... PASSPHRASE + MODULE CODE", 50, 455);
   text("WARNING ........ PRE-AUTHORIZED USERS ONLY", 50, 475);
 
-  // decorative scan ticker
   textSize(13);
   fill(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
   let tick = floor(frameCount / 3) % 40;
@@ -961,7 +1056,6 @@ function drawSuccessScreen() {
   textFont(myFont);
   textAlign(CENTER, CENTER);
 
-  // Flickering big title
   let flicker = (frameCount % 37 < 2) ? 150 : 255;
   crtGlow(1);
   fill(110, flicker, 140);
@@ -981,7 +1075,6 @@ function drawSuccessScreen() {
   text("SHALL WE PLAY A GAME?", width / 2, 210);
   noGlow();
 
-  // Game list — classic WarGames roster
   textAlign(LEFT, TOP);
   textSize(15);
   fill(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
@@ -1010,7 +1103,6 @@ function drawSuccessScreen() {
     let row = i % 7;
     let gx = 80 + col * colW;
     let gy = 260 + row * 22;
-    // highlight the last one
     if (games[i] === "> GLOBAL THERMONUCLEAR WAR") {
       let pulse = 150 + 60 * sin(frameCount * 0.12);
       fill(255, pulse, 60);
@@ -1044,7 +1136,6 @@ function drawPigeonCipher() {
     pop();
   }
 
-  // progress bar
   push();
   let barW = 420;
   let barX = (width - barW) / 2;
@@ -1089,7 +1180,6 @@ function drawCircuitsPuzzle() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
 
-  // Custom compact header that leaves room for reset button
   push();
   noStroke();
   fill(0, 50, 22);
@@ -1106,7 +1196,6 @@ function drawCircuitsPuzzle() {
   line(25, 75, width - 25, 75);
   pop();
 
-  // RESET button (top right)
   drawCircuitResetButton();
 
   push();
@@ -1130,7 +1219,6 @@ function drawCircuitsPuzzle() {
 
   drawCircuitGrid();
 
-  // Solved message
   push();
   textFont(myFont);
   textAlign(CENTER, CENTER);
@@ -1169,8 +1257,6 @@ function drawCircuitGrid() {
 
   push();
 
-  // WIRES — draw between every pair of adjacent nodes
-  // Active wire: both endpoints ON → bright & glow
   for (let r = 0; r < 3; r++) {
     for (let c = 0; c < 3; c++) {
       let idx = r * 3 + c;
@@ -1212,7 +1298,6 @@ function drawCircuitGrid() {
   }
   noGlow();
 
-  // NODES
   textFont(myFont);
   textAlign(CENTER, CENTER);
 
@@ -1222,7 +1307,6 @@ function drawCircuitGrid() {
     let x = startX + c * cellSize;
     let y = startY + r * cellSize;
 
-    // hover detection
     let hover = mouseX >= x && mouseX <= x + nodeSize &&
                 mouseY >= y && mouseY <= y + nodeSize;
 
@@ -1306,10 +1390,6 @@ function mouseClicked() {
       }
     } else if (screen === "newspaper") {
       screen = "lobby";
-    } else if (screen === "success") {
-      // allow click to go back to lobby from success too
-      // (optional — doesn't break anything if you prefer to stay)
-      // screen = "lobby";
     } else if (screen === "circuits") {
       handleCircuitClicks();
     }
@@ -1322,11 +1402,44 @@ function keyPressed() {
       textInput = textInput.substring(0, textInput.length - 1);
     }
     if (keyCode === ENTER) {
-      if (textInput === "YES") {
+      if (textInput.toUpperCase() === "YES") {
         state = 1;
+        screen = "gameSelect";
       }
     }
   } else if (state === 1) {
+    // GAME SELECT
+    if (screen === "gameSelect") {
+      if (keyCode === BACKSPACE) {
+        gameSelectInput = gameSelectInput.substring(0, gameSelectInput.length - 1);
+      } else if (keyCode === ENTER || keyCode === RETURN) {
+        let normalized = gameSelectInput.trim().toUpperCase();
+        let match = GAME_BANK.find(function (g) { return g.toUpperCase() === normalized; });
+        if (match) {
+          selectedGame = match;
+          gameSelectMessage = "GAME FOUND. LOADING...";
+          screen = "gameLoaded";
+          gameSelectInput = "";
+        } else {
+          gameSelectMessage = "INVALID SELECTION";
+          gameSelectInput = "";
+        }
+      } else if (key.length === 1) {
+        gameSelectInput += key;
+      }
+      return;
+    }
+
+    // GAME LOADED — ESC back
+    if (screen === "gameLoaded") {
+      if (keyCode === ESCAPE) {
+        screen = "gameSelect";
+        gameSelectMessage = "";
+      }
+      return;
+    }
+
+    // CHALLENGE ONE password screen
     if (screen !== "challenge one") return;
 
     if (keyCode === BACKSPACE) {
@@ -1359,7 +1472,6 @@ function keyPressed() {
 //  CIRCUITS — click routing & state
 // ============================================================
 function handleCircuitClicks() {
-  // BACK button
   if (mouseX >= 40 && mouseX <= 140 &&
       mouseY >= height - 45 && mouseY <= height - 17) {
     screen = "challenge one";
@@ -1367,7 +1479,6 @@ function handleCircuitClicks() {
     return;
   }
 
-  // RESET button
   if (mouseX >= 580 && mouseX <= 670 &&
       mouseY >= 30 && mouseY <= 65) {
     resetCircuitPuzzle();
@@ -1422,7 +1533,7 @@ function resetCircuitPuzzle() {
 
 
 // ============================================================
-//  NEWSPAPER BUFFER (unchanged content — only the chrome around it changed)
+//  NEWSPAPER BUFFER
 // ============================================================
 function buildNewspaper(g) {
   g.background(255);
