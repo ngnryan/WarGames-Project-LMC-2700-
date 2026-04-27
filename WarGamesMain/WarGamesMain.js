@@ -2277,13 +2277,8 @@ function drawCircuitsPuzzle() {
   drawCircuitGrid();
   drawAnswerLamp();
 
-  drawCircuitBackButton();
   drawTerminalFooter("[ BACK ] RETURN TO TERMINAL",
                      "SUBROUTINE 0x3C • CHECKSUM ACTIVE");
-}
-
-function drawCircuitBackButton() {
-  drawTermButton(40, height - 45, 100, 28, "< BACK", { size: 16 });
 }
 
 
