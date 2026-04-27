@@ -77,7 +77,7 @@ let newspaperContent = {
       "TITLE",
       "Subtitle.",
       "",
-      "By AUJHSO NELFKA"
+      "By NEKLAF AUHSOJ"
     ]
   },
   section1: {
@@ -1081,8 +1081,6 @@ function drawLobbyStatusBar() {
   let hint;
   if (hoveredApp) {
     hint = "[ CLICK ] OPEN " + hoveredApp.label.toUpperCase();
-  } else if (miniTermHovered) {
-    hint = "[ CLICK ] MAXIMIZE TERMINAL";
   } else {
     hint = "SELECT APPLICATION";
   }
@@ -1257,11 +1255,11 @@ function drawMiniTerminalWindow() {
   fill(0, 0, 0, 110);
   rect(r.x + 5, r.y + 5, r.w, r.h, 3);
 
-  // Window body — black like a real terminal
+  // Window body — black like a real terminal (purely decorative, no hover state)
   fill(0);
   stroke(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
-  strokeWeight(miniTermHovered ? 1.6 : 1);
-  if (miniTermHovered) crtGlow(0.7); else crtGlow(0.25);
+  strokeWeight(1);
+  crtGlow(0.25);
   rect(r.x, r.y, r.w, r.h, 3);
   noGlow();
 
@@ -1364,40 +1362,9 @@ function drawMiniTerminalWindow() {
   }
   noGlow();
 
-  // Hover halo / "click to maximize" hint
-  if (miniTermHovered) {
-    // dimming overlay
-    noStroke();
-    fill(0, 0, 0, 60);
-    rect(r.x, r.y + 26, r.w, r.h - 26);
-
-    // "MAXIMIZE" pill in the center
-    let pillW = 220, pillH = 40;
-    let px = r.x + r.w / 2 - pillW / 2;
-    let py = r.y + r.h / 2 - pillH / 2;
-
-    // Solid black backing (slightly larger than the pill) so the
-    // terminal text behind it doesn't bleed through.
-    noStroke();
-    fill(0);
-    rect(px - 6, py - 6, pillW + 12, pillH + 12, 6);
-
-    // Pill border + glow
-    crtGlow(0.9);
-    noFill();
-    stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
-    strokeWeight(1.6);
-    rect(px, py, pillW, pillH, 4);
-
-    // Pill label
-    noStroke();
-    fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
-    textFont(myFont);
-    textSize(18);
-    textAlign(CENTER, CENTER);
-    text("[ CLICK TO MAXIMIZE ]", r.x + r.w / 2, r.y + r.h / 2);
-    noGlow();
-  }
+  // (The mini terminal is decorative-only — clicking it does nothing.
+  //  Use the Terminal shortcut in the left sidebar to open the W.O.P.R.
+  //  password screen.)
 
   pop();
 }
@@ -1720,7 +1687,7 @@ function drawNewspaperZoom() {
         text(line, px + 24, bodyY);
         bodyY += 26;
         textStyle(NORMAL);
-      } else if (line.indexOf("AUJHSO") >= 0) {
+      } else if (line.indexOf("NEKLAF") >= 0) {
         textStyle(BOLD);
         textSize(22);
         text(line, px + 24, bodyY);
@@ -2018,7 +1985,7 @@ function drawVictoryScreen() {
   pop();
 
   // Footer
-  drawTerminalFooter("// THE ONLY WINNING MOVE IS NOT TO PLAY",
+  drawTerminalFooter("// SYSTEM SHUTDOWN COMPLETE",
                      "REFRESH PAGE TO PLAY AGAIN");
 }
 
@@ -2279,89 +2246,45 @@ function drawPigeonBoard(cx, cy, size, board) {
 
 
 // ============================================================
-//  CIRCUITS PUZZLE
+//  CIRCUITS PUZZLE — green CRT theme, grid of toggleable nodes,
+//  answer hidden under a lightbulb that brightens with progress.
 // ============================================================
 function drawCircuitsPuzzle() {
-  // Dark NORAD-board background
-  background(2, 4, 10);
-  push();
-  noStroke();
-  // a vignette of soft blue
-  let vg = drawingContext.createRadialGradient(
-    width / 2, height / 2, 50,
-    width / 2, height / 2, height
-  );
-  vg.addColorStop(0, "rgba(20, 50, 90, 0.4)");
-  vg.addColorStop(1, "rgba(0, 0, 0, 0)");
-  drawingContext.fillStyle = vg;
-  drawingContext.fillRect(0, 0, width, height);
-  pop();
-
+  background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
+  drawTerminalHeader("DIAGNOSTIC // CIRCUIT STABILIZER", "");
+  drawDefconReadout(5);
 
-  // Custom compact header that leaves room for reset button
+  // Sub-header
   push();
-  noStroke();
-  fill(0, 30, 60);
-  rect(25, 25, 540, 50);
-  glowColor(120, 200, 255, 14);
-  fill(180, 220, 255);
+  crtGlow(0.4);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
   textFont(myFont);
-  textSize(22);
-  textAlign(LEFT, CENTER);
-  text("NORAD // MISSILE STATUS BOARD", 40, 50);
+  textAlign(LEFT, TOP);
+  textSize(15);
+  text("> MATCH THE STABLE CONFIGURATION.", 50, 100);
+
+  let activeCount = circuitStates.filter(function (x) { return x; }).length;
+  fill(C_GREEN[0], C_GREEN[1], C_GREEN[2]);
+  textSize(13);
+  text("NODES ACTIVE: " + activeCount + " / 9", 50, 124);
+
+  fill(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  textAlign(RIGHT, TOP);
+  text("CLICK A NODE TO TOGGLE", width - 50, 124);
   noGlow();
-  stroke(60, 120, 200);
-  strokeWeight(1);
-  line(25, 75, width - 25, 75);
   pop();
 
   // RESET button (top right)
   drawCircuitResetButton();
 
-  // Sub-header
-  push();
-  glowColor(120, 200, 255, 8);
-  fill(180, 220, 255);
-  textFont(myFont);
-  textAlign(LEFT, TOP);
-  textSize(15);
-  text("> SELECT LAUNCH SITES.", 50, 100);
-
-  let activeCount = circuitStates.filter(function (x) { return x; }).length;
-  fill(140, 200, 255);
-  textSize(13);
-  text("SITES ARMED: " + activeCount + " / 9", 50, 124);
-
-  fill(80, 140, 200);
-  textAlign(RIGHT, TOP);
-  text("CLICK A SITE TO ARM", width - 50, 124);
-  noGlow();
-  pop();
-
-  drawNoradMap();
-
-  // Solved message
-  push();
-  textFont(myFont);
-  textAlign(CENTER, CENTER);
-  if (circuitSolved) {
-    let pulse = 160 + 70 * sin(frameCount * 0.12);
-    glowColor(120, 200, 255, 18);
-    fill(180, pulse + 50, 255);
-    textSize(22);
-    text("> LAUNCH PATTERN CONFIRMED: TICTACTOE", width / 2, 558);
-    noGlow();
-  } else {
-    fill(80, 130, 190);
-    textSize(15);
-    text("AWAITING LAUNCH AUTHORIZATION...", width / 2, 558);
-  }
-  pop();
+  // Main puzzle elements
+  drawCircuitGrid();
+  drawAnswerLamp();
 
   drawCircuitBackButton();
   drawTerminalFooter("[ BACK ] RETURN TO TERMINAL",
-                     "NORAD-04 • UPLINK ACTIVE");
+                     "SUBROUTINE 0x3C • CHECKSUM ACTIVE");
 }
 
 function drawCircuitBackButton() {
@@ -2369,320 +2292,305 @@ function drawCircuitBackButton() {
 }
 
 function drawCircuitResetButton() {
-  // Use blue tint on this screen
-  let x = 580, y = 30, w = 90, h = 35;
-  let hover = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h;
+  drawTermButton(580, 30, 90, 35, "[ RESET ]", { size: 16 });
+}
+
+// ---- The 3x3 toggle grid with phosphor-green wires ----
+//      Layout uses constants below; click handler must mirror them.
+function drawCircuitGrid() {
+  let startX = 80;
+  let startY = 175;
+  let cellSize = 100;
+  let nodeSize = 46;
+
   push();
-  noFill();
-  if (hover) {
-    stroke(180, 220, 255);
-    strokeWeight(2);
-    drawingContext.shadowBlur = 14;
-    drawingContext.shadowColor = "rgba(120, 200, 255, 0.85)";
-  } else {
-    stroke(80, 140, 200);
-    strokeWeight(1);
-    drawingContext.shadowBlur = 6;
-    drawingContext.shadowColor = "rgba(120, 200, 255, 0.4)";
+  rectMode(CORNER);
+
+  // WIRES — drawn between every adjacent pair of nodes.
+  // A wire glows bright when BOTH endpoints are ON; otherwise it sits dim.
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      let idx = r * 3 + c;
+      let x1 = startX + c * cellSize + nodeSize / 2;
+      let y1 = startY + r * cellSize + nodeSize / 2;
+
+      if (c < 2) {
+        let rightIdx = idx + 1;
+        let active = circuitStates[idx] && circuitStates[rightIdx];
+        let x2 = startX + (c + 1) * cellSize + nodeSize / 2;
+        if (active) {
+          crtGlow(0.9);
+          stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+          strokeWeight(3);
+        } else {
+          noGlow();
+          stroke(0, 90, 30);
+          strokeWeight(2);
+        }
+        line(x1, y1, x2, y1);
+      }
+
+      if (r < 2) {
+        let downIdx = idx + 3;
+        let active = circuitStates[idx] && circuitStates[downIdx];
+        let y2 = startY + (r + 1) * cellSize + nodeSize / 2;
+        if (active) {
+          crtGlow(0.9);
+          stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+          strokeWeight(3);
+        } else {
+          noGlow();
+          stroke(0, 90, 30);
+          strokeWeight(2);
+        }
+        line(x1, y1, x1, y2);
+      }
+    }
   }
-  rect(x, y, w, h, 2);
-  drawingContext.shadowBlur = 0;
-  noStroke();
-  fill(hover ? 200 : 140, hover ? 230 : 180, 255);
+  noGlow();
+
+  // NODES
   textFont(myFont);
-  textSize(16);
   textAlign(CENTER, CENTER);
-  text("[ RESET ]", x + w / 2, y + h / 2);
+
+  for (let i = 0; i < 9; i++) {
+    let r = floor(i / 3);
+    let c = i % 3;
+    let x = startX + c * cellSize;
+    let y = startY + r * cellSize;
+    let hover = mouseX >= x && mouseX <= x + nodeSize &&
+                mouseY >= y && mouseY <= y + nodeSize;
+
+    if (circuitStates[i]) {
+      // Active node — pulsing green fill
+      let pulse = 190 + 50 * sin(frameCount * 0.15 + i);
+      crtGlow(1);
+      fill(60, pulse, 110);
+      stroke(180, 255, 200);
+      strokeWeight(2);
+    } else if (hover) {
+      crtGlow(0.6);
+      fill(14, 32, 20);
+      stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+      strokeWeight(1.8);
+    } else {
+      crtGlow(0.25);
+      fill(10, 22, 14);
+      stroke(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
+      strokeWeight(1.5);
+    }
+    rect(x, y, nodeSize, nodeSize, 8);
+    noGlow();
+
+    noStroke();
+    if (circuitStates[i]) {
+      fill(C_BG[0], C_BG[1], C_BG[2]);
+      textSize(15);
+      text("ON", x + nodeSize / 2, y + nodeSize / 2);
+    } else {
+      fill(hover ? C_GREEN_HI[0] : C_GREEN[0],
+           hover ? C_GREEN_HI[1] : C_GREEN[1],
+           hover ? C_GREEN_HI[2] : C_GREEN[2]);
+      textSize(13);
+      text("OFF", x + nodeSize / 2, y + nodeSize / 2);
+    }
+  }
+
+  textAlign(LEFT, TOP);
   pop();
 }
 
-// ---- NORAD Map: US outline, missile sites, animated trajectories ----
-// Map area on the canvas
-let _mapRect = { x: 60, y: 150, w: 580, h: 380 };
-
-// 9 missile site positions (in canvas coords) — approximate locations
-// laid out in a loose 3×3 over the lower-48
-function getMissileSites() {
-  let m = _mapRect;
-  let sites = [];
-  let cols = [m.x + m.w * 0.18, m.x + m.w * 0.50, m.x + m.w * 0.80];
-  let rows = [m.y + m.h * 0.28, m.y + m.h * 0.55, m.y + m.h * 0.78];
-  for (let r = 0; r < 3; r++) {
-    for (let c = 0; c < 3; c++) {
-      sites.push({ x: cols[c], y: rows[r], idx: r * 3 + c });
-    }
+// ---- The lightbulb + hidden answer panel ----
+//      Brightness scales with how many switches the player has correctly
+//      turned ON (out of the 5 that should be ON). The TICTACTOE answer
+//      stays hidden until the puzzle is fully solved (all 9 match).
+function drawAnswerLamp() {
+  // Count switches that are ON AND should be ON
+  let correctActive = 0;
+  for (let i = 0; i < 9; i++) {
+    if (circuitStates[i] && circuitSolution[i]) correctActive++;
   }
-  return sites;
-}
+  let totalCorrect = circuitSolution.filter(function (x) { return x; }).length;
+  let brightness = totalCorrect > 0 ? (correctActive / totalCorrect) : 0;
 
-function drawNoradMap() {
-  let m = _mapRect;
+  // Panel rectangle (right side of the screen)
+  let panelX = 410;
+  let panelY = 165;
+  let panelW = 250;
+  let panelH = 295;
+
   push();
+  rectMode(CORNER);
 
-  // Map panel background
+  // Panel backing
   noStroke();
-  fill(0, 8, 20);
-  rect(m.x, m.y, m.w, m.h, 2);
+  fill(2, 12, 6);
+  rect(panelX, panelY, panelW, panelH, 3);
 
-  // Glowing white border around the map (like the WarGames screens)
+  // Panel border
+  crtGlow(0.3);
   noFill();
-  drawingContext.shadowBlur = 14;
-  drawingContext.shadowColor = "rgba(220, 240, 255, 0.6)";
-  stroke(230, 240, 255);
-  strokeWeight(2);
-  rect(m.x, m.y, m.w, m.h, 2);
-  // inner thin rule
-  drawingContext.shadowBlur = 0;
-  stroke(120, 170, 220, 120);
-  strokeWeight(0.6);
-  rect(m.x + 4, m.y + 4, m.w - 8, m.h - 8, 1);
+  stroke(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  strokeWeight(1);
+  rect(panelX, panelY, panelW, panelH, 3);
+  noGlow();
 
-  // Subtle latitude/longitude grid
-  stroke(40, 80, 130, 100);
-  strokeWeight(0.4);
-  for (let i = 1; i < 8; i++) {
-    let xx = m.x + (m.w / 8) * i;
-    line(xx, m.y + 6, xx, m.y + m.h - 6);
-  }
-  for (let i = 1; i < 5; i++) {
-    let yy = m.y + (m.h / 5) * i;
-    line(m.x + 6, yy, m.x + m.w - 6, yy);
-  }
+  // Header
+  noStroke();
+  crtGlow(0.4);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textFont(myFont);
+  textAlign(CENTER, TOP);
+  textSize(14);
+  text("MODULE OUTPUT", panelX + panelW / 2, panelY + 10);
+  noGlow();
 
-  // ---- US outline (lower 48 stylized polygon) ----
-  // Coordinates expressed in [0..1] within the map rect, then mapped to pixels.
-  // Loose outline approximation — west coast → south → east → north → back.
-  let outline = [
-    [0.12, 0.28],   // NW (top of WA)
-    [0.10, 0.52],   // N. CA / OR coast
-    [0.13, 0.66],   // mid CA coast
-    [0.18, 0.82],   // SoCal
-    [0.30, 0.86],   // AZ/NM south
-    [0.38, 0.84],   // TX panhandle bottom
-    [0.45, 0.92],   // TX gulf
-    [0.55, 0.86],   // LA
-    [0.62, 0.86],   // MS/AL gulf
-    [0.70, 0.88],   // FL panhandle
-    [0.74, 0.92],   // FL tip
-    [0.78, 0.84],   // FL east
-    [0.82, 0.74],   // SE coast
-    [0.86, 0.62],   // mid Atlantic
-    [0.90, 0.46],   // NJ/NY
-    [0.92, 0.36],   // New England
-    [0.88, 0.26],   // Maine
-    [0.80, 0.20],   // Great Lakes north
-    [0.65, 0.18],   // ND/MT north
-    [0.45, 0.18],   // Northern plains
-    [0.28, 0.20],   // ID/MT north
-    [0.18, 0.22],   // WA top
-    [0.12, 0.28]    // close
-  ];
+  // Header underline
+  stroke(C_GREEN_FAINT[0], C_GREEN_FAINT[1], C_GREEN_FAINT[2]);
+  strokeWeight(1);
+  line(panelX + 20, panelY + 32, panelX + panelW - 20, panelY + 32);
 
-  // outline glow (cyan)
-  drawingContext.shadowBlur = 10;
-  drawingContext.shadowColor = "rgba(80, 180, 255, 0.7)";
+  // ---- BULB GEOMETRY ----
+  let bulbCx = panelX + panelW / 2;
+  let bulbCy = panelY + 92;
+  let bulbR = 22;
+
+  // Hanging cord from top of panel down to the bulb cap
   noFill();
-  stroke(120, 200, 255);
+  stroke(60, 80, 60);
   strokeWeight(1.4);
-  beginShape();
-  for (let i = 0; i < outline.length; i++) {
-    let p = outline[i];
-    vertex(m.x + p[0] * m.w, m.y + p[1] * m.h);
+  line(bulbCx, panelY + 40, bulbCx, bulbCy - bulbR - 2);
+
+  // Outer halo behind bulb (radial gradient) — scales with brightness
+  if (brightness > 0) {
+    let glowR = 50 + 90 * brightness;
+    let glowAlpha = 0.10 + 0.50 * brightness;
+    let grad = drawingContext.createRadialGradient(
+      bulbCx, bulbCy, 5,
+      bulbCx, bulbCy, glowR
+    );
+    grad.addColorStop(0, "rgba(120, 255, 150, " + glowAlpha + ")");
+    grad.addColorStop(1, "rgba(120, 255, 150, 0)");
+    drawingContext.fillStyle = grad;
+    drawingContext.fillRect(panelX + 1, panelY + 32,
+                            panelW - 2, panelH - 33);
   }
+
+  // Bulb cap (metallic part at top)
+  noStroke();
+  fill(60, 60, 60);
+  rect(bulbCx - 8, bulbCy - bulbR - 4, 16, 6, 1);
+  fill(80, 80, 80);
+  rect(bulbCx - 5, bulbCy - bulbR - 6, 10, 2);
+
+  // Bulb glass — color lerps from dim outline to bright phosphor with brightness
+  let bR = lerp(20, 200, brightness);
+  let bG = lerp(40, 255, brightness);
+  let bB = lerp(20, 180, brightness);
+
+  if (brightness > 0.05) {
+    drawingContext.shadowBlur = 18 * brightness;
+    drawingContext.shadowColor = "rgba(150, 255, 170, " + brightness + ")";
+  }
+  fill(bR, bG, bB);
+  stroke(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
+  strokeWeight(1.2);
+  ellipse(bulbCx, bulbCy, bulbR * 1.7, bulbR * 1.95);
+  drawingContext.shadowBlur = 0;
+
+  // Filament — small zig-zag inside the bulb
+  noFill();
+  if (brightness > 0.1) {
+    stroke(255, 240, 180);
+    strokeWeight(1.4);
+    drawingContext.shadowBlur = 10 * brightness;
+    drawingContext.shadowColor = "rgba(255, 240, 180, " + brightness + ")";
+  } else {
+    stroke(40, 70, 40);
+    strokeWeight(1);
+  }
+  let fy = bulbCy - 1;
+  let fx = bulbCx - 7;
+  beginShape();
+  vertex(fx,      fy + 4);
+  vertex(fx + 3,  fy - 3);
+  vertex(fx + 7,  fy + 3);
+  vertex(fx + 11, fy - 3);
+  vertex(fx + 14, fy + 4);
   endShape();
   drawingContext.shadowBlur = 0;
 
-  // ---- A few labeled cities for flavor ----
-  let cities = [
-    { x: 0.16, y: 0.78, name: "LOS ANGELES" },
-    { x: 0.48, y: 0.85, name: "DALLAS" },
-    { x: 0.72, y: 0.34, name: "BOSTON" },
-    { x: 0.83, y: 0.50, name: "WASHINGTON" },
-    { x: 0.50, y: 0.42, name: "OMAHA" },
-    { x: 0.32, y: 0.70, name: "PHOENIX" },
-    { x: 0.78, y: 0.74, name: "MIAMI" },
-    { x: 0.20, y: 0.32, name: "SEATTLE" }
-  ];
-  noStroke();
-  fill(140, 200, 255, 200);
-  textFont(myFont);
-  textSize(9);
-  textAlign(LEFT, CENTER);
-  for (let i = 0; i < cities.length; i++) {
-    let c = cities[i];
-    let cx = m.x + c.x * m.w;
-    let cy = m.y + c.y * m.h;
-    // little plus marker
-    stroke(140, 200, 255, 200);
-    strokeWeight(0.8);
-    line(cx - 3, cy, cx + 3, cy);
-    line(cx, cy - 3, cx, cy + 3);
-    noStroke();
-    text(c.name, cx + 5, cy);
+  // ---- LIGHT POOL on the panel "wall" below the bulb ----
+  if (brightness > 0) {
+    let poolCy = panelY + 215;
+    let poolR = 60 + 90 * brightness;
+    let poolAlpha = 0.05 + 0.30 * brightness;
+    let pg = drawingContext.createRadialGradient(
+      bulbCx, poolCy, 5,
+      bulbCx, poolCy, poolR
+    );
+    pg.addColorStop(0, "rgba(120, 255, 150, " + poolAlpha + ")");
+    pg.addColorStop(1, "rgba(120, 255, 150, 0)");
+    drawingContext.fillStyle = pg;
+    drawingContext.fillRect(panelX + 4, panelY + 140,
+                            panelW - 8, panelH - 144);
   }
 
-  // NORAD star (Colorado)
-  let nx = m.x + 0.34 * m.w;
-  let ny = m.y + 0.55 * m.h;
-  drawNoradStar(nx, ny);
-  noStroke();
-  fill(200, 230, 255);
-  textSize(10);
-  textAlign(LEFT, CENTER);
-  text("NORAD ★", nx + 8, ny + 1);
-
-  // ---- Missile launch trajectories (draw BEFORE site markers so sites are on top) ----
-  let sites = getMissileSites();
-  for (let i = 0; i < sites.length; i++) {
-    if (circuitStates[i]) {
-      drawMissileTrajectory(sites[i], i);
-    }
-  }
-
-  // ---- Site markers ----
-  drawMissileSites(sites);
-
-  pop();
-}
-
-function drawNoradStar(cx, cy) {
-  push();
-  drawingContext.shadowBlur = 10;
-  drawingContext.shadowColor = "rgba(255, 230, 130, 0.9)";
-  noStroke();
-  fill(255, 230, 130);
-  beginShape();
-  let r1 = 6, r2 = 2.5;
-  for (let i = 0; i < 10; i++) {
-    let a = -HALF_PI + i * TWO_PI / 10;
-    let r = (i % 2 === 0) ? r1 : r2;
-    vertex(cx + cos(a) * r, cy + sin(a) * r);
-  }
-  endShape(CLOSE);
-  drawingContext.shadowBlur = 0;
-  pop();
-}
-
-function drawMissileSites(sites) {
-  push();
+  // ---- ANSWER TEXT — hidden until puzzle is fully solved ----
   textFont(myFont);
   textAlign(CENTER, CENTER);
-  let half = 18; // marker is 36×36 click target
+  let answerCy = panelY + 215;
 
-  for (let i = 0; i < sites.length; i++) {
-    let s = sites[i];
-    let on = circuitStates[i];
-    let hover = mouseX >= s.x - half && mouseX <= s.x + half &&
-                mouseY >= s.y - half && mouseY <= s.y + half;
-
-    // outer hover halo
-    if (hover && !on) {
-      drawingContext.shadowBlur = 12;
-      drawingContext.shadowColor = "rgba(180, 230, 255, 0.85)";
-      noFill();
-      stroke(180, 230, 255);
-      strokeWeight(1.6);
-      rect(s.x - half - 4, s.y - half - 4, half * 2 + 8, half * 2 + 8, 3);
-      drawingContext.shadowBlur = 0;
-    }
-
-    // Marker square — outline style
-    if (on) {
-      let pulse = 0.6 + 0.4 * sin(frameCount * 0.18 + i);
-      drawingContext.shadowBlur = 16 * pulse;
-      drawingContext.shadowColor = "rgba(255, 80, 80, " + (0.9 * pulse) + ")";
-      noFill();
-      stroke(255, 90, 90);
-      strokeWeight(2);
-    } else {
-      drawingContext.shadowBlur = 6;
-      drawingContext.shadowColor = "rgba(120, 200, 255, 0.5)";
-      noFill();
-      stroke(150, 210, 255);
-      strokeWeight(1.4);
-    }
-    rect(s.x - half, s.y - half, half * 2, half * 2, 2);
+  if (circuitSolved) {
+    let pulse = 0.7 + 0.3 * sin(frameCount * 0.15);
+    drawingContext.shadowBlur = 18 * pulse;
+    drawingContext.shadowColor = "rgba(120, 255, 150, 0.95)";
+    noStroke();
+    fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+    textSize(26);
+    text("TICTACTOE", bulbCx, answerCy);
     drawingContext.shadowBlur = 0;
 
-    // Site code label
-    noStroke();
-    let code = "M-" + nf(i + 1, 2);
-    if (on) {
-      fill(255, 110, 110);
-    } else {
-      fill(180, 220, 255);
-    }
+    fill(C_GREEN[0], C_GREEN[1], C_GREEN[2]);
     textSize(11);
-    text(code, s.x, s.y - 2);
-
-    // Status pip beneath
-    if (on) {
-      fill(255, 60, 60);
-      textSize(8);
-      text("ARMED", s.x, s.y + 9);
-    } else {
-      fill(110, 160, 200);
-      textSize(8);
-      text("STANDBY", s.x, s.y + 9);
-    }
+    text("// OUTPUT STABLE", bulbCx, answerCy + 26);
+  } else {
+    // Placeholder — same character footprint, dim and unreadable
+    noStroke();
+    fill(C_GREEN_FAINT[0], C_GREEN_FAINT[1], C_GREEN_FAINT[2]);
+    textSize(26);
+    text("? ? ? ? ? ? ? ? ?", bulbCx, answerCy);
   }
-  pop();
-}
 
-function drawMissileTrajectory(site, idx) {
-  // Each ARMED site shoots a dashed glowing trajectory off-map.
-  // Direction picked deterministically per site so each one looks different.
-  push();
-  // direction vector: head off the top edge of the map at varying angles
-  let angles = [-1.4, -1.55, -1.7, -1.3, -1.5, -1.65, -1.2, -1.45, -1.6];
-  let a = angles[idx];
-  let len = 360;
-  // animation: dashes scroll outward
-  let t = (frameCount * 0.18) % 12;
+  // ---- Stability meter at the bottom of the panel ----
+  let meterY = panelY + panelH - 26;
+  let meterX = panelX + 20;
+  let meterW = panelW - 40;
 
-  let ex = site.x + cos(a) * len;
-  let ey = site.y + sin(a) * len;
-
-  // soft blue glow underlay
-  drawingContext.shadowBlur = 18;
-  drawingContext.shadowColor = "rgba(120, 200, 255, 0.85)";
-  stroke(180, 220, 255);
-  strokeWeight(1.2);
   noFill();
+  stroke(C_GREEN_FAINT[0], C_GREEN_FAINT[1], C_GREEN_FAINT[2]);
+  strokeWeight(1);
+  rect(meterX, meterY, meterW, 6);
 
-  // dashed trajectory — segments at fixed spacing, animated offset
-  let dx = ex - site.x;
-  let dy = ey - site.y;
-  let segs = 22;
-  for (let k = 0; k < segs; k++) {
-    let f1 = (k * 12 + t) / len;
-    let f2 = f1 + 5 / len;
-    if (f1 > 1) continue;
-    f2 = min(f2, 1);
-    let x1 = site.x + dx * f1;
-    let y1 = site.y + dy * f1;
-    let x2 = site.x + dx * f2;
-    let y2 = site.y + dy * f2;
-    // brighter near the head (k = segs-1)
-    let alpha = map(k, 0, segs, 80, 255);
-    stroke(200, 230, 255, alpha);
-    line(x1, y1, x2, y2);
-  }
-  drawingContext.shadowBlur = 0;
-
-  // Bright leading "head" of the trajectory
-  drawingContext.shadowBlur = 14;
-  drawingContext.shadowColor = "rgba(255, 255, 255, 0.95)";
   noStroke();
-  fill(255);
-  let headProg = ((frameCount * 0.012) % 1);
-  let hx = site.x + dx * headProg;
-  let hy = site.y + dy * headProg;
-  ellipse(hx, hy, 5, 5);
-  drawingContext.shadowBlur = 0;
+  if (circuitSolved) {
+    fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  } else {
+    fill(C_GREEN[0], C_GREEN[1], C_GREEN[2]);
+  }
+  rect(meterX + 1, meterY + 1, (meterW - 2) * brightness, 4);
+
+  fill(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  textFont(myFont);
+  textAlign(LEFT, BOTTOM);
+  textSize(10);
+  text("STABILITY", meterX, meterY - 2);
+  textAlign(RIGHT, BOTTOM);
+  text(Math.round(brightness * 100) + "%", meterX + meterW, meterY - 2);
 
   pop();
 }
+
 
 // Zoomed minesweeper board drawn directly on the main canvas (not a buffer).
 function drawZoomedPuzzleBoard(x, y, size) {
@@ -2811,9 +2719,6 @@ function mouseClicked() {
         } else if (opened.id === "cipher") {
           screen = "cipher";
         }
-      } else if (miniTermHovered) {
-        // Clicking the live mini-terminal also maximizes it
-        screen = "challenge one";
       }
     } else if (screen === "newspaper") {
       if (zoomedSection !== null) {
@@ -2882,6 +2787,9 @@ function keyPressed() {
         winMode = true;
         winStartMs = millis();
         typedText = "";
+      } else if (typedText === "JOSHUA FALKEN") {
+        message = "look next to the ReadMe.TXT";
+        typedText = "";
       } else {
         message = "ACCESS DENIED";
         typedText = "";
@@ -2912,12 +2820,18 @@ function handleCircuitClicks() {
     return;
   }
 
-  let sites = getMissileSites();
-  let half = 18;
-  for (let i = 0; i < sites.length; i++) {
-    let s = sites[i];
-    if (mouseX >= s.x - half && mouseX <= s.x + half &&
-        mouseY >= s.y - half && mouseY <= s.y + half) {
+  let startX = 80;
+  let startY = 175;
+  let cellSize = 100;
+  let nodeSize = 46;
+
+  for (let i = 0; i < 9; i++) {
+    let r = floor(i / 3);
+    let c = i % 3;
+    let x = startX + c * cellSize;
+    let y = startY + r * cellSize;
+    if (mouseX >= x && mouseX <= x + nodeSize &&
+        mouseY >= y && mouseY <= y + nodeSize) {
       toggleCircuit(i);
       checkCircuitSolution();
       return;
@@ -3013,7 +2927,7 @@ function buildNewspaper(g) {
   g.textStyle(BOLD);
   g.textSize(13);
   g.fill(20);
-  g.text("By AUJHSO NELFKA", 250, 138);
+  g.text("By NEKLAF AUHSOJ", 250, 138);
 
   g.stroke(60);
   g.strokeWeight(0.6);
