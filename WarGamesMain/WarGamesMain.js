@@ -630,8 +630,6 @@ function drawMonitorScreenContent(scrCx, scrCy, scrW0, scrH0, zoom) {
 
       textSize(scrH0 * 0.07);
       text("NORAD // W.O.P.R.", sx + padX, sy + padY);
-      text("TRUNKLINE 04  ESTABLISHING LINK",
-           sx + padX, sy + padY + scrH0 * 0.08);
 
       // Centered LOADING + dots
       textAlign(CENTER, CENTER);
@@ -2275,9 +2273,6 @@ function drawCircuitsPuzzle() {
   noGlow();
   pop();
 
-  // RESET button (top right)
-  drawCircuitResetButton();
-
   // Main puzzle elements
   drawCircuitGrid();
   drawAnswerLamp();
@@ -2291,9 +2286,6 @@ function drawCircuitBackButton() {
   drawTermButton(40, height - 45, 100, 28, "< BACK", { size: 16 });
 }
 
-function drawCircuitResetButton() {
-  drawTermButton(580, 30, 90, 35, "[ RESET ]", { size: 16 });
-}
 
 // ---- The 3x3 toggle grid with phosphor-green wires ----
 //      Layout uses constants below; click handler must mirror them.
@@ -2813,12 +2805,6 @@ function handleCircuitClicks() {
     return;
   }
 
-  // RESET button
-  if (mouseX >= 580 && mouseX <= 670 &&
-      mouseY >= 30 && mouseY <= 65) {
-    resetCircuitPuzzle();
-    return;
-  }
 
   let startX = 80;
   let startY = 175;
@@ -2855,15 +2841,7 @@ function checkCircuitSolution() {
   circuitMessage = "STABLE OUTPUT: TICTACTOE";
 }
 
-function resetCircuitPuzzle() {
-  circuitStates = [
-    false, false, false,
-    false, false, false,
-    false, false, false
-  ];
-  circuitMessage = "";
-  circuitSolved = false;
-}
+
 
 
 // ============================================================
