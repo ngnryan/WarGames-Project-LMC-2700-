@@ -29,11 +29,12 @@ let screen = "lobby";
 let typedText = "";
 let correctPassword = "open123";
 let message = "";
+let usernamePromptDismissed = false;
 let newspaperBuffer = null;
 let cipherNoteBuffer = null;
 
 // ===== Game timer (15 min countdown linked to ACCESS:DENIED reveal) =====
-const TIMER_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const TIMER_DURATION_MS = 45 * 60 * 1000; // 15 minutes
 const TIMER_TARGET = "ACCESS:DENIED";     // 13 chars; one revealed per ~1.15 min
 let timerStartMs = null;                  // set when player enters lobby (state 1)
 let failureMode = false;                  // true once timer hits 0
@@ -74,10 +75,10 @@ let newspaperContent = {
       "NEW YORK    •    SUNDAY, MAY 22, 1927    •    LATE CITY EDITION",
       "Vol. LXXVII                                       PRICE TWO CENTS",
       "",
-      "TITLE",
-      "Subtitle.",
+      "EXTRA EXTRA!",
+      "Speculation on Human Nature",
       "",
-      "By NEKLAF AUHSOJ"
+      "ROHTUA: NEKLAF AUHSOJ"
     ]
   },
   section1: {
@@ -117,14 +118,16 @@ let newspaperContent = {
     body:
       "Records indicate a symbol-based cipher was used in several of the documents. " +
       "Investigators believe the marks translate directly into letters when read in order.\n\n" +
-      "Officials remind citizens that small details matter. Space is reserved elsewhere " +
-      "for the final recovered note."
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZ\n\n" +
+      "ZYXWVUTSRQPONMLKJIHGFEDCBA"
   },
   editorial: {
     body:
-      "In times of uncertainty, clarity comes from observation. A hidden phrase may be " +
-      "built from familiar parts, but only careful reading reveals the intended result.\n\n" +
-      "This panel can stay as flavor text, or you can replace it with another clue block."
+      "Mankind's greatest asset has always been their opposable thumbs and their audacity " +
+      "to scrawl over anything and everything. As cavemen, they would record stories and " +
+      "information on cave walls. This physical ability to record was to important to " +
+      "them, that even as they evolved and grew more intelligent, they simply found ways " +
+      "to bring the cave walls with them."
   }
 };
 
@@ -951,6 +954,45 @@ function drawTermButton(x, y, w, h, label, opts) {
   pop();
 }
 
+function getFooterLabelRect(label) {
+  textFont(myFont);
+  textSize(15);
+
+  return {
+    x: 40,
+    y: height - 50,
+    w: textWidth(label) + 18,
+    h: 24
+  };
+}
+
+function getFooterExitRect() {
+  return getFooterLabelRect("[ EXIT ] CLICK TO RETURN TO LOBBY");
+}
+
+function getFooterBackRect() {
+  return getFooterLabelRect("[ BACK ] RETURN TO TERMINAL");
+}
+
+function footerExitClicked() {
+  let r = getFooterExitRect();
+  return mouseX >= r.x && mouseX <= r.x + r.w &&
+         mouseY >= r.y && mouseY <= r.y + r.h;
+}
+
+function footerBackClicked() {
+  let r = getFooterBackRect();
+  return mouseX >= r.x && mouseX <= r.x + r.w &&
+         mouseY >= r.y && mouseY <= r.y + r.h;
+}
+
+function leaveFinalPuzzle() {
+  screen = "challenge one";
+  typedText = "";
+  currentIndex = 0;
+  lastSwitch = millis();
+}
+
 
 // ============================================================
 //  LOBBY BACKGROUND & CHROME
@@ -1324,15 +1366,14 @@ function drawMiniTerminalWindow() {
     "CLIP",
     "",
     "Description:",
-    "    Redirects output of command line tools to the Windows clipboard.",
-    "    This text output can then be pasted into other programs.",
+    "    In 45 minutes, this automated system will initate Protocol: Cleanse.",
+    "    Prove your intelligence. Prove your kind deserves to live.",
     "",
     "Parameter List:",
-    "    /?              Displays this help message.",
+    "    /?              Do not rely only on software.",
     "",
-    "Examples:",
-    "    DIR | CLIP      Places a copy of the current directory",
-    "                    listing into the Windows clipboard.",
+    "Imperative:",
+    "    DIR | CLIP      Leave nothing unturned.",
     "",
     "    CLIP < README.TXT  XIRXFRGH",
     "",
@@ -1348,16 +1389,6 @@ function drawMiniTerminalWindow() {
     text(lines[i], cx, ly);
   }
 
-  // blinking cursor on the very last prompt line
-  let lastIdx = lines.length;
-  let cursorY = cy + (lastIdx) * lineH;
-  if (cursorY + lineH < r.y + r.h - 6) {
-    if (frameCount % 60 < 30) {
-      text("c:\\users\\falken\\Desktop>_", cx, cursorY);
-    } else {
-      text("c:\\users\\falken\\Desktop>", cx, cursorY);
-    }
-  }
   noGlow();
 
   // (The mini terminal is decorative-only — clicking it does nothing.
@@ -1673,14 +1704,14 @@ function drawNewspaperZoom() {
     let bodyY = py + 80;
     for (let i = 0; i < content.lines.length; i++) {
       let line = content.lines[i];
-      if (line === "TITLE") {
+      if (line === "EXTRA EXTRA!") {
         textStyle(BOLD);
         textSize(36);
         text(line, px + 24, bodyY);
         bodyY += 44;
         textStyle(NORMAL);
         textSize(18);
-      } else if (line === "Subtitle.") {
+      } else if (line === "speculation on human nature") {
         textStyle(ITALIC);
         text(line, px + 24, bodyY);
         bodyY += 26;
@@ -1753,7 +1784,8 @@ function drawPasswordScreen() {
   textSize(26);
   fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
   let cursor = (frameCount % 60 < 30) ? "_" : " ";
-  text("> " + typedText + cursor, 55, 220);
+  let promptPrefix = usernamePromptDismissed ? "> " : "> ENTER USERNAME: ";
+  text(promptPrefix + typedText + cursor, 55, 220);
 
   // response message
   textSize(20);
@@ -2148,14 +2180,14 @@ function drawPigeonCipher() {
   text("DECODING TRANSMISSION...", width / 2, barY - 14);
   pop();
 
-  drawTerminalFooter("> STREAM AUTOPLAYING", "RETURN TO LOBBY ON COMPLETION");
+  drawTerminalFooter("[ BACK ] RETURN TO TERMINAL",
+                     "STREAM CONTINUES UNTIL RETURN");
 
   if (millis() - lastSwitch > INTERVAL) {
     currentIndex++;
     lastSwitch = millis();
     if (currentIndex >= pigeonBoards.length) {
       currentIndex = 0;
-      screen = "lobby";
     }
   }
 }
@@ -2686,13 +2718,14 @@ function mouseClicked() {
   }
 
   if (state === 1) {
-    let exitCondition = mouseX >= 30 && mouseX < 110 &&
-                        mouseY >= 600 && mouseY < 635;
-
     if (screen === "challenge one") {
-      if (exitCondition) {
+      if (footerExitClicked()) {
         screen = "lobby";
         message = "";
+      }
+    } else if (screen === "finalpuzzle") {
+      if (footerBackClicked()) {
+        leaveFinalPuzzle();
       }
     } else if (screen === "lobby") {
       // Route to whichever app tile was clicked
@@ -2758,7 +2791,15 @@ function keyPressed() {
     if (keyCode === BACKSPACE) {
       typedText = typedText.substring(0, typedText.length - 1);
     } else if (keyCode === ENTER || keyCode === RETURN) {
-      if (typedText === correctPassword.toUpperCase()) {
+      if (!usernamePromptDismissed) {
+        if (typedText === "JOSHUA FALKEN") {
+          usernamePromptDismissed = true;
+          message = "look next to the ReadMe.TXT";
+        } else {
+          message = "ACCESS DENIED";
+        }
+        typedText = "";
+      } else if (typedText === correctPassword.toUpperCase()) {
         message = "ACCESS GRANTED";
         screen = "success";
       } else if (typedText === "CIRCUITS") {
@@ -2769,13 +2810,11 @@ function keyPressed() {
       } else if (typedText === "TICTACTOE") {
         currentIndex = 0;
         lastSwitch = millis();
+        typedText = "";
         screen = "finalpuzzle";
       } else if (typedText === "DEFCONV") {
         winMode = true;
         winStartMs = millis();
-        typedText = "";
-      } else if (typedText === "JOSHUA FALKEN") {
-        message = "look next to the ReadMe.TXT";
         typedText = "";
       } else {
         message = "ACCESS DENIED";
@@ -2792,9 +2831,9 @@ function keyPressed() {
 //  CIRCUITS — click routing & state
 // ============================================================
 function handleCircuitClicks() {
-  // BACK button
-  if (mouseX >= 40 && mouseX <= 140 &&
-      mouseY >= height - 45 && mouseY <= height - 17) {
+  let backRect = getFooterLabelRect("[ BACK ] RETURN TO TERMINAL");
+  if (mouseX >= backRect.x && mouseX <= backRect.x + backRect.w &&
+      mouseY >= backRect.y && mouseY <= backRect.y + backRect.h) {
     screen = "challenge one";
     circuitMessage = "";
     return;
@@ -2890,17 +2929,17 @@ function buildNewspaper(g) {
   g.textAlign(CENTER, TOP);
   g.textStyle(BOLD);
   g.textSize(24);
-  g.text("TITLE", 250, 98);
+  g.text("EXTRA EXTRA!", 250, 98);
 
   g.textStyle(ITALIC);
   g.textSize(9);
-  g.text("Subtitle.", 250, 128);
+  g.text("Speculation on Human Nature", 250, 128);
 
-  // Byline (scrambled — Challenge 1 clue)
+  // Byline (backwards — Challenge 1 clue)
   g.textStyle(BOLD);
   g.textSize(13);
   g.fill(20);
-  g.text("By NEKLAF AUHSOJ", 250, 138);
+  g.text("ROHTUA: NEKLAF AUHSOJ", 250, 138);
 
   g.stroke(60);
   g.strokeWeight(0.6);
@@ -3003,7 +3042,7 @@ function buildNewspaper(g) {
   g.textStyle(NORMAL);
   g.textSize(6.8);
   g.text(
-    "Records indicate a symbol-based cipher was used in several of the documents. Investigators believe the marks translate directly into letters when read in order.\n\nOfficials remind citizens that small details matter. Space is reserved elsewhere for the final recovered note.",
+    "Records indicate a symbol-based cipher was used in several of the documents. Investigators believe the marks translate directly into letters when read in order.\n\nABCDEFGHIJKLMNOPQRSTUVWXYZ \n\nZYXWVUTSRQPONMLKJIHGFEDCBA",
     20, lowerBodyY, lowerDivX - 30, bottomY - lowerBodyY
   );
 
@@ -3015,7 +3054,7 @@ function buildNewspaper(g) {
   g.textStyle(NORMAL);
   g.textSize(6.8);
   g.text(
-    "In times of uncertainty, clarity comes from observation. A hidden phrase may be built from familiar parts, but only careful reading reveals the intended result.\n\nThis panel can stay as flavor text, or you can replace it with another clue block.",
+    "Mankind's greatest asset has always been their opposable thumbs and their audacity to scrawl over anything and everything. As cavemen, they would record stories and information on cave walls. This physical ability to record was to important to them, that even as they evolved and grew more intelligent, they simply found ways to bring the cave walls with them.",
     lowerDivX + 10, lowerBodyY, 470 - (lowerDivX + 10), bottomY - lowerBodyY
   );
 }
