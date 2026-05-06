@@ -1,0 +1,3123 @@
+/*****TITLE SCREEN VARS*********/
+var state;
+var loading;
+var screenCol;
+var scaleMult;
+var barCount;
+var clicked;
+var dots;
+var bootStartFrame = 0;
+var texts = ["GREETINGS PROFESSOR FALKEN", "SHALL WE PLAY A GAME?"];
+var index;
+var displayText;
+var writing;
+var textInput = "";
+var myFont;
+
+/*************LOBBY AND SUCCESS****************/
+let screen = "lobby";
+let typedText = "";
+let correctPassword = "open123";
+let message = "";
+let usernamePromptDismissed = false;
+let newspaperBuffer = null;
+let cipherNoteBuffer = null;
+
+/**************GAME TIMER*******************/
+// 15 min countdown tied to the ACCESS:DENIED reveal.
+const TIMER_DURATION_MS = 45 * 60 * 1000; // 15 minutes
+const TIMER_TARGET = "ACCESS:DENIED";     // 13 chars; one revealed per ~1.15 min
+let timerStartMs = null;                  // set when player enters lobby (state 1)
+let failureMode = false;                  // true once timer hits 0
+let failureStartMs = null;                // when failureMode flipped
+let failureTypedIndex = 0;                // typewriter progress for "> Failure"
+
+/**************WIN STATE*******************/
+// Tracks the real ending once the player types DEFCONV.
+let winMode = false;
+let winStartMs = null;
+
+// Newspaper section regions (in displayed/screen coordinates relative to the
+// rendered newspaper image). Used to detect clicks and to render a zoomed view.
+// `sx, sy, sw, sh` are normalized [0..1] within the newspaper image.
+let newspaperSections = [
+  { id: "masthead",  title: "Herald Tribune — Masthead",
+    sx: 0.04, sy: 0.02, sw: 0.92, sh: 0.25 },
+  { id: "section1",  title: "Section 1",
+    sx: 0.04, sy: 0.27, sw: 0.205, sh: 0.36 },
+  { id: "officials", title: "Officials Review Notes",
+    sx: 0.245, sy: 0.27, sw: 0.205, sh: 0.36 },
+  { id: "puzzle", title: "Daily Puzzle",
+    sx: 0.45, sy: 0.27, sw: 0.225, sh: 0.36 },
+  { id: "riddle",    title: "Riddle of the Day",
+    sx: 0.668, sy: 0.27, sw: 0.292, sh: 0.36 },
+  { id: "public",    title: "Public Notice",
+    sx: 0.04, sy: 0.65, sw: 0.46, sh: 0.33 },
+  { id: "editorial", title: "Editorial",
+    sx: 0.51, sy: 0.65, sw: 0.45, sh: 0.33 }
+];
+let hoveredNewspaperSection = null;
+let zoomedSection = null; // when set, render the zoomed section view instead
+
+// Long-form content used by the zoom view. Keyed by section id.
+let newspaperContent = {
+  masthead: {
+    big: "Herald Tribune",
+    lines: [
+      "NEW YORK    •    SUNDAY, MAY 22, 1927    •    LATE CITY EDITION",
+      "Vol. LXXVII                                       PRICE TWO CENTS",
+      "",
+      "EXTRA EXTRA!",
+      "Speculation on Human Nature",
+      "",
+      "ROHTUA: NEKLAF AUHSOJ"
+    ]
+  },
+  section1: {
+    body:
+      "Today generally fair. Cooler by evening. Winds shifting north.\n\n" +
+      "Morning bulletins indicate continued attention from city offices " +
+      "after clerks reported coded markings found among papers and desk materials.\n\n" +
+      "Witnesses described a series of notes arranged in a deliberate order, " +
+      "suggesting the message was meant to be solved rather than merely read."
+  },
+  officials: {
+    body:
+      "Messengers and clerks say several papers appeared to refer to a " +
+      "defense term, though one final character remained uncertain.\n\n" +
+      "The arrangement of the message led some readers to suspect a childlike " +
+      "or symbol-based cipher."
+  },
+  puzzle: {
+    body:
+      "Today's challenge from the Herald Tribune.\n\n" +
+      "A 3×3 board of nine squares — flags, numbers, and empty spaces. " +
+      "Identify the pattern and submit your solution.\n\n" +
+      "Answers will be printed in tomorrow's edition."
+  },
+  riddle: {
+    body:
+      "I hide in plain sight,\n" +
+      "but forward I mislead.\n" +
+      "My truth only shows when\n" +
+      "you change how you read.\n\n" +
+      "The end is the start,\n" +
+      "the start is the end —\n" +
+      "shift your direction,\n" +
+      "and the message will bend."
+  },
+  public: {
+    body:
+      "Records indicate a symbol-based cipher was used in several of the documents. " +
+      "Investigators believe the marks translate directly into letters when read in order.\n\n" +
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZ\n\n" +
+      "ZYXWVUTSRQPONMLKJIHGFEDCBA"
+  },
+  editorial: {
+    body:
+      "Mankind's greatest asset has always been their opposable thumbs and their audacity " +
+      "to scrawl over anything and everything. As cavemen, they would record stories and " +
+      "information on cave walls. This physical ability to record was to important to " +
+      "them, that even as they evolved and grew more intelligent, they simply found ways " +
+      "to bring the cave walls with them."
+  }
+};
+
+/**************PIGEON CIPHER*******************/
+// Each board is a 9-char string (row-major). 'O' = circle, 'X' = cross, '.' = empty.
+// Order spells "DEFCONV" — same as the original PNG sequence.
+let pigeonBoards = [
+  { cells: "OXO" + "XO." + "OXX", strike: false },  // D
+  { cells: "XOX" + ".XO" + "OXO", strike: false },  // E
+  { cells: "OXO" + "XOO" + ".XO", strike: false },  // F
+  { cells: "OXO" + "XOX" + "XO.", strike: false },  // C
+  { cells: "OXO" + "X.O" + "XOX", strike: false },  // O
+  { cells: ".XO" + "OXO" + "XOX", strike: false },  // N
+  { cells: "OO." + "OXO" + "XXX", strike: true  }   // V — last row struck through
+];
+let currentIndex = 0;
+let lastSwitch = 0;
+const INTERVAL = 2500;
+
+/**************CIRCUITS PUZZLE*******************/
+let circuitStates = [
+  false, false, false,
+  false, false, false,
+  false, false, false
+];
+
+let circuitSolution = [
+  true, false, true,
+  true, false, true,
+  true, false, false
+];
+
+let circuitMessage = "";
+let circuitSolved = false;
+
+/**************LOBBY APP TILES******************/
+// Desktop-style shortcut icons running down the left side.
+// Each one opens a fullscreen "app" when clicked.
+let appTiles = [
+  {
+    id: "terminal",
+    label: "Terminal",
+    x: 30, y: 60, w: 80, h: 90,
+    hovered: false,
+    icon: "terminal"
+  },
+  {
+    id: "newspaper",
+    label: "News",
+    x: 30, y: 170, w: 80, h: 90,
+    hovered: false,
+    icon: "newspaper"
+  },
+  {
+    id: "cipher",
+    label: "Notes",
+    x: 30, y: 280, w: 80, h: 90,
+    hovered: false,
+    icon: "cipher"
+  }
+];
+
+// Geometry of the live mini-terminal window shown on the lobby.
+// Canvas is 700x650; this fills the area to the right of the 130px sidebar.
+let miniTermRect = { x: 145, y: 60, w: 525, h: 540 };
+let miniTermHovered = false;
+
+/********************THEME********************/
+// Phosphor-green CRT palette.
+const C_BG          = [4, 12, 6]; //Had AI find the values that aligned most with the Cathode-Ray Tube aesthetic
+const C_BG_PANEL    = [8, 22, 14];
+const C_GREEN_HI    = [130, 255, 160];
+const C_GREEN       = [80, 230, 120];
+const C_GREEN_MID   = [0, 200, 70];
+const C_GREEN_DIM   = [0, 140, 45];
+const C_GREEN_FAINT = [0, 80, 28];
+const C_AMBER       = [255, 180, 60];
+const C_RED         = [255, 70, 70];
+
+function crtGlow(strength) {
+  // strength 0..1
+  let s = strength === undefined ? 0.6 : strength;
+  drawingContext.shadowBlur = 14 * s;
+  drawingContext.shadowColor = "rgba(80, 255, 120, " + (0.85 * s) + ")";
+}
+function glowColor(r, g, b, blur) {
+  drawingContext.shadowBlur = blur || 10;
+  drawingContext.shadowColor = "rgba(" + r + "," + g + "," + b + "," + 0.8 + ")";
+}
+function noGlow() { drawingContext.shadowBlur = 0; }
+
+
+function preload() {
+  myFont = loadFont("VT323-Regular.ttf");
+}
+
+function setup() {
+  createCanvas(700, 650);
+  colorMode(RGB, 255, 255, 255, 255);
+  scaleMult = 1;
+  clicked = false;
+  state = 0;
+  textFont(myFont);
+  loading = true;
+  screenCol = "rgb(20, 30, 48)";
+  dots = 1;
+  index = 0;
+  writing = false;
+  fitCanvasToWindow();
+  window.addEventListener('resize', fitCanvasToWindow);
+}
+
+function fitCanvasToWindow() { //had AI help with fitting the screen to be adaptable
+  // Page chrome — black void around the "screen"
+  Object.assign(document.documentElement.style, {
+    margin: '0', padding: '0', height: '100%', background: '#000'
+  });
+  Object.assign(document.body.style, {
+    margin: '0', padding: '0', background: '#000',
+    height: '100vh', overflow: 'hidden',
+    display: 'flex', alignItems: 'center', justifyContent: 'center'
+  });
+
+  const canvasElement = document.querySelector('canvas');
+  if (!canvasElement) return;
+
+  // Scale 700x650 to fit the viewport, preserving aspect ratio
+  const viewportScale = Math.min(window.innerWidth / 700, window.innerHeight / 650);
+
+  canvasElement.style.display = 'block';
+  canvasElement.style.width  = (700 * viewportScale) + 'px';
+  canvasElement.style.height = (650 * viewportScale) + 'px';
+  canvasElement.style.imageRendering = 'auto'; // smooth scaling — better for fine text
+}
+
+function draw() {
+  if (state === 0) {
+    titleScreen();
+    if (clicked && scaleMult >= 10) drawCRTOverlay();
+  } else if (state === 1) {
+    successlobby();
+    // Skip the scanline overlay on the newspaper screen so the article is legible
+    if (screen !== "newspaper") drawCRTOverlay();
+  }
+}
+
+
+/********************CRT OVERLAY********************/
+// Scanlines and vignette laid over the whole screen.
+function drawCRTOverlay() {
+  push();
+  resetMatrix();
+
+  // horizontal scanlines
+  noStroke();
+  for (let y = 0; y < height; y += 3) {
+    fill(0, 0, 0, 55);
+    rect(0, y, width, 1);
+  }
+
+  // occasional "rolling" bright band
+  let bandY = (frameCount * 2) % (height + 80) - 40;
+  fill(120, 255, 140, 10);
+  rect(0, bandY, width, 30);
+
+  // vignette
+  let g = drawingContext.createRadialGradient(
+    width / 2, height / 2, height * 0.25,
+    width / 2, height / 2, height * 0.85
+  );
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, 'rgba(0,0,0,0.65)');
+  drawingContext.fillStyle = g;
+  drawingContext.fillRect(0, 0, width, height);
+
+  // edge tint — a faint green wash over the whole frame for cohesion
+  fill(0, 60, 20, 14);
+  rect(0, 0, width, height);
+
+  pop();
+}
+
+
+/********************TITLE SCREEN********************/
+// Desk and monitor are drawn from scratch, then zoom in on click.
+function titleScreen() {
+  push();
+
+  // Smooth zoom progression: 0 = full desk view, 1 = fully zoomed inside CRT
+  // We grow scaleMult from 1 → 10 as before, but interpret it as a 0..1 zoom.
+  if (clicked && scaleMult < 10) {
+    scaleMult += 0.12;
+  }
+  let zoom = constrain((scaleMult - 1) / 9, 0, 1); // 0..1
+
+  // Geometry of the monitor's screen on the desk (in canvas coords, when zoom=0)
+  // Picked so it sits on top of the desk in the center of the canvas.
+  let monitorCenterX = width / 2;
+  let monitorCenterY = height / 2;        // monitor screen vertically centered, sits on desk via stand
+  let monitorScreenWidth = 180;
+  let monitorScreenHeight = 180;
+
+  // We zoom by scaling the whole scene around the monitor and growing.
+  // Zoom factor 1 at zoom=0, factor ~ 4 at zoom=1.
+  let sceneZoomScale = lerp(1, 3.6, zoom);
+
+  // ---- BACKGROUND ROOM ----
+  drawRoomBackground(zoom);
+
+  // ---- DESK + MONITOR (transformed by zoom) ----
+  push();
+  translate(monitorCenterX, monitorCenterY);
+  scale(sceneZoomScale);
+  translate(-monitorCenterX, -monitorCenterY);
+
+  drawDeskAndMonitor(monitorCenterX, monitorCenterY, monitorScreenWidth, monitorScreenHeight);
+
+  // ---- INNER SCREEN CONTENT (drawn at "real" coords inside the screen rect) ----
+  // Even at zoom=0 we render boot text scaled down via clipping; once zoomed in,
+  // it fills the whole canvas naturally because the scaling above blows it up.
+  drawMonitorScreenContent(monitorCenterX, monitorCenterY, monitorScreenWidth, monitorScreenHeight, zoom);
+
+  pop();
+
+  pop();
+}
+
+function drawRoomBackground(zoom) {
+  push();
+  // The room recedes/fades as we zoom in
+  let roomAlpha = lerp(255, 0, zoom);
+
+  // Wall — dark navy gradient
+  noStroke();
+  let g = drawingContext.createLinearGradient(0, 0, 0, height * 0.7);
+  g.addColorStop(0, "rgba(8, 12, 22, " + (roomAlpha / 255) + ")");
+  g.addColorStop(1, "rgba(20, 26, 40, " + (roomAlpha / 255) + ")");
+  drawingContext.fillStyle = g;
+  drawingContext.fillRect(0, 0, width, height * 0.7);
+
+  // Floor — warmer brown tone
+  let g2 = drawingContext.createLinearGradient(0, height * 0.7, 0, height);
+  g2.addColorStop(0, "rgba(38, 28, 22, " + (roomAlpha / 255) + ")");
+  g2.addColorStop(1, "rgba(18, 12, 10, " + (roomAlpha / 255) + ")");
+  drawingContext.fillStyle = g2;
+  drawingContext.fillRect(0, height * 0.7, width, height * 0.3);
+
+  // Wall/floor seam
+  stroke(0, 0, 0, roomAlpha * 0.6);
+  strokeWeight(2);
+  line(0, height * 0.7, width, height * 0.7);
+
+  // Window frame on the wall — soft moonlight square (left side)
+  if (roomAlpha > 10) {
+    noStroke();
+    fill(60, 78, 110, roomAlpha * 0.35);
+    rect(60, 80, 120, 140, 2);
+    // window cross
+    stroke(15, 22, 36, roomAlpha * 0.9);
+    strokeWeight(3);
+    line(120, 80, 120, 220);
+    line(60, 150, 180, 150);
+    // moonlight glow into room
+    noStroke();
+    let mg = drawingContext.createRadialGradient(120, 150, 5, 120, 150, 220);
+    mg.addColorStop(0, "rgba(120, 150, 200, " + (roomAlpha / 255 * 0.18) + ")");
+    mg.addColorStop(1, "rgba(120, 150, 200, 0)");
+    drawingContext.fillStyle = mg;
+    drawingContext.fillRect(0, 0, width, height);
+  }
+
+  // Wall poster / pinboard hint on the right
+  if (roomAlpha > 10) {
+    noStroke();
+    fill(50, 38, 28, roomAlpha * 0.7);
+    rect(width - 180, 90, 130, 110, 2);
+    fill(78, 60, 44, roomAlpha * 0.7);
+    rect(width - 175, 95, 120, 100, 2);
+    // pinned papers
+    fill(220, 210, 180, roomAlpha * 0.5);
+    rect(width - 165, 105, 50, 35, 1);
+    fill(200, 190, 160, roomAlpha * 0.45);
+    rect(width - 105, 120, 45, 60, 1);
+    fill(210, 200, 170, roomAlpha * 0.5);
+    rect(width - 160, 150, 40, 30, 1);
+  }
+  pop();
+}
+
+function drawDeskAndMonitor(monitorCenterX, monitorCenterY, monitorScreenWidth, monitorScreenHeight) {
+  push();
+
+  // ---- DESK GEOMETRY (consistent reference points) ----
+  let deskBackEdgeY  = height * 0.66;   // back edge of the desk top
+  let deskFrontEdgeY = height * 0.7;    // front edge / where front face begins
+  // Items "sit on the desk" by aligning their bottom edge to deskFrontEdgeY.
+  let deskSurfaceY = deskFrontEdgeY;
+
+  // ---- DESK ----
+  noStroke();
+  // desk top (perspective: wider in front, slightly narrower in back)
+  fill(72, 50, 32);
+  beginShape();
+  vertex(40,           deskFrontEdgeY);
+  vertex(width - 40,   deskFrontEdgeY);
+  vertex(width - 60,   deskBackEdgeY);
+  vertex(60,           deskBackEdgeY);
+  endShape(CLOSE);
+
+  // desk top highlight strip (back edge)
+  fill(98, 70, 46);
+  beginShape();
+  vertex(60,         deskBackEdgeY);
+  vertex(width - 60, deskBackEdgeY);
+  vertex(width - 65, deskBackEdgeY + 3);
+  vertex(65,         deskBackEdgeY + 3);
+  endShape(CLOSE);
+
+  // desk front face
+  fill(48, 32, 22);
+  rect(40, deskFrontEdgeY, width - 80, 30);
+
+  // desk shadow underneath
+  fill(0, 0, 0, 120);
+  rect(40, deskFrontEdgeY + 30, width - 80, 8);
+
+  // wood grain on desk top
+  stroke(58, 40, 26, 120);
+  strokeWeight(1);
+  for (let i = 0; i < 8; i++) {
+    let woodGrainY = deskBackEdgeY + (deskFrontEdgeY - deskBackEdgeY) * (i / 8);
+    line(70 + i * 10, woodGrainY, width - 70 - i * 5, woodGrainY);
+  }
+  noStroke();
+
+  // ---- MONITOR (drawn first so the mug/notebook can shadow onto it if needed) ----
+  // The monitor frame's bottom edge sits on the desk surface.
+  let monitorFrameTopY = monitorCenterY - monitorScreenHeight / 2 - 14;
+  let monitorFrameBottomY = monitorCenterY + monitorScreenHeight / 2 + 24;
+  let monitorFrameLeftX = monitorCenterX - monitorScreenWidth / 2 - 18;
+  let monitorFrameRightX = monitorCenterX + monitorScreenWidth / 2 + 18;
+  let monitorFrameWidth = monitorFrameRightX - monitorFrameLeftX;
+  let monitorFrameHeight = monitorFrameBottomY - monitorFrameTopY;
+
+  // Stand: from desk surface up to the underside of the monitor frame.
+  let monitorStandTopY = monitorFrameBottomY;
+  let monitorStandBottomY = deskSurfaceY;
+  // Stand neck
+  fill(40, 40, 46);
+  rect(monitorCenterX - 8, monitorStandTopY, 16, max(0, monitorStandBottomY - monitorStandTopY - 4));
+  // Stand base — flat disc on the desk
+  fill(28, 28, 32);
+  rect(monitorCenterX - 40, monitorStandBottomY - 6, 80, 6, 2);
+  // contact shadow under stand
+  fill(0, 0, 0, 80);
+  ellipse(monitorCenterX, monitorStandBottomY, 90, 6);
+
+  // Monitor frame — outer body
+  fill(220, 218, 205);
+  rect(monitorFrameLeftX, monitorFrameTopY, monitorFrameWidth, monitorFrameHeight, 6);
+  // body shading (bottom band)
+  fill(190, 188, 175, 100);
+  rect(monitorFrameLeftX, monitorFrameBottomY - 16, monitorFrameWidth, 16, 6);
+  // brand label
+  noStroke();
+  fill(70, 70, 70);
+  textFont(myFont);
+  textSize(9);
+  textAlign(RIGHT, CENTER);
+  text("WOPR-CRT", monitorFrameRightX - 6, monitorFrameBottomY - 8);
+  // power LED
+  fill(0, 230, 110);
+  ellipse(monitorFrameLeftX + 12, monitorFrameBottomY - 8, 4, 4);
+  drawingContext.shadowBlur = 10;
+  drawingContext.shadowColor = "rgba(0, 230, 110, 0.8)";
+  ellipse(monitorFrameLeftX + 12, monitorFrameBottomY - 8, 4, 4);
+  drawingContext.shadowBlur = 0;
+
+  // Inner monitor frame ridge
+  noFill();
+  stroke(150, 148, 138);
+  strokeWeight(1);
+  rect(monitorCenterX - monitorScreenWidth / 2 - 8, monitorCenterY - monitorScreenHeight / 2 - 6, monitorScreenWidth + 16, monitorScreenHeight + 12, 4);
+  noStroke();
+
+  // Screen itself
+  fill(2, 8, 4);
+  rect(monitorCenterX - monitorScreenWidth / 2, monitorCenterY - monitorScreenHeight / 2, monitorScreenWidth, monitorScreenHeight, 3);
+
+  // Glass highlight
+  let screenHighlightGradient = drawingContext.createLinearGradient(
+    monitorCenterX - monitorScreenWidth / 2, monitorCenterY - monitorScreenHeight / 2,
+    monitorCenterX + monitorScreenWidth / 2, monitorCenterY + monitorScreenHeight / 2
+  );
+  screenHighlightGradient.addColorStop(0, "rgba(255,255,255,0.06)");
+  screenHighlightGradient.addColorStop(0.5, "rgba(255,255,255,0)");
+  drawingContext.fillStyle = screenHighlightGradient;
+  drawingContext.fillRect(
+    monitorCenterX - monitorScreenWidth / 2, monitorCenterY - monitorScreenHeight / 2, monitorScreenWidth, monitorScreenHeight
+  );
+
+  // ---- COFFEE MUG (sits ON desk surface, left of monitor) ----
+  // Bottom of mug = restY. Mug body is 30 tall.
+  let mugBottomY = deskSurfaceY;
+  let mugCenterX = monitorFrameLeftX - 60;
+  let mugBodyHeight = 32;
+  let mugBodyWidth = 28;
+
+  // contact shadow
+  fill(0, 0, 0, 110);
+  ellipse(mugCenterX, mugBottomY, mugBodyWidth + 6, 6);
+  // body
+  fill(180, 60, 50);
+  rect(mugCenterX - mugBodyWidth / 2, mugBottomY - mugBodyHeight, mugBodyWidth, mugBodyHeight, 3);
+  // base ring
+  fill(150, 45, 38);
+  rect(mugCenterX - mugBodyWidth / 2, mugBottomY - 4, mugBodyWidth, 4, 2);
+  // handle
+  noFill();
+  stroke(150, 45, 38);
+  strokeWeight(3);
+  arc(mugCenterX + mugBodyWidth / 2 + 4, mugBottomY - mugBodyHeight / 2 - 2, 14, 18, -HALF_PI, HALF_PI);
+  noStroke();
+  // rim (top opening)
+  fill(40, 12, 8);
+  ellipse(mugCenterX, mugBottomY - mugBodyHeight, mugBodyWidth, 7);
+  // coffee surface
+  fill(60, 30, 18);
+  ellipse(mugCenterX, mugBottomY - mugBodyHeight + 0.5, mugBodyWidth - 6, 5);
+
+  // ---- NOTEBOOK / PAPERS (sits ON desk, right of monitor) ----
+  let paperStackCenterX = monitorFrameRightX + 60;
+  let paperStackBottomY = deskSurfaceY;            // bottom edge sits on desk
+  let paperStackWidth = 64;
+  let paperStackHeight = 44;
+  // contact shadow
+  fill(0, 0, 0, 100);
+  rect(paperStackCenterX - paperStackWidth / 2 + 2, paperStackBottomY - 2, paperStackWidth, 4);
+  // pages stack — back page peeks out
+  fill(232, 220, 190);
+  rect(paperStackCenterX - paperStackWidth / 2 + 2, paperStackBottomY - paperStackHeight + 3, paperStackWidth, paperStackHeight - 6);
+  // top page
+  fill(245, 235, 205);
+  rect(paperStackCenterX - paperStackWidth / 2, paperStackBottomY - paperStackHeight, paperStackWidth, paperStackHeight - 4);
+  // ruled lines
+  stroke(150, 130, 95, 160);
+  strokeWeight(0.8);
+  for (let i = 0; i < 5; i++) {
+    line(paperStackCenterX - paperStackWidth / 2 + 4, paperStackBottomY - paperStackHeight + 8 + i * 6,
+         paperStackCenterX + paperStackWidth / 2 - 4, paperStackBottomY - paperStackHeight + 8 + i * 6);
+  }
+  noStroke();
+
+  pop();
+}
+
+
+// Draws the boot/prompt text inside the monitor's screen rectangle.
+// Uses the canvas drawingContext clip so text never escapes the screen.
+function drawMonitorScreenContent(monitorCenterX, monitorCenterY, monitorScreenWidth, monitorScreenHeight, zoom) {
+  push();
+
+  // Clip to the screen rect so text stays inside the monitor
+  drawingContext.save();
+  drawingContext.beginPath();
+  drawingContext.rect(
+    monitorCenterX - monitorScreenWidth / 2, monitorCenterY - monitorScreenHeight / 2, monitorScreenWidth, monitorScreenHeight
+  );
+  drawingContext.clip();
+
+  // CRT-green phosphor wash
+  noStroke();
+  fill(0, 40, 20, 80);
+  rect(monitorCenterX - monitorScreenWidth / 2, monitorCenterY - monitorScreenHeight / 2, monitorScreenWidth, monitorScreenHeight);
+
+  // Helper: position as percentage of the screen rect.
+  // Because the parent transform scales the entire scene (including text
+  // sizes drawn here), using percentages keeps the layout looking the same
+  // at every zoom step.
+  let screenLeftX = monitorCenterX - monitorScreenWidth / 2;
+  let screenTopY = monitorCenterY - monitorScreenHeight / 2;
+
+  textFont(myFont);
+  textAlign(LEFT, TOP);
+
+  if (clicked) {
+    if (loading) {
+      // Boot text — phosphor green
+      glowColor(80, 255, 120, 8);
+      fill(110, 255, 145);
+
+      // Top-left header block — 5% padding from the screen edges
+      let screenPaddingX = monitorScreenWidth * 0.06;
+      let screenPaddingY = monitorScreenHeight * 0.06;
+
+      textSize(monitorScreenHeight * 0.07);
+      text("NORAD // W.O.P.R.", screenLeftX + screenPaddingX, screenTopY + screenPaddingY);
+
+      // Centered LOADING + dots
+      textAlign(CENTER, CENTER);
+      textSize(monitorScreenHeight * 0.13);
+      text("LOADING", monitorCenterX, monitorCenterY - monitorScreenHeight * 0.04);
+
+      if (frameCount % 60 == 0) {
+        if (dots != 3) dots++; else dots = 1;
+      }
+      text(".".repeat(dots), monitorCenterX, monitorCenterY + monitorScreenHeight * 0.10);
+
+      // Progress bar near the bottom
+      let loadingBarWidth = monitorScreenWidth * 0.85;
+      let loadingBarHeight = monitorScreenHeight * 0.04;
+      let loadingBarX = monitorCenterX - loadingBarWidth / 2;
+      let loadingBarY = screenTopY + monitorScreenHeight - monitorScreenHeight * 0.12;
+      noFill();
+      stroke(0, 200, 70);
+      strokeWeight(1);
+      rect(loadingBarX, loadingBarY, loadingBarWidth, loadingBarHeight);
+      noStroke();
+      let bootElapsedFrames = frameCount - bootStartFrame;
+      let bootProgress = constrain(bootElapsedFrames / 480, 0, 1);
+      fill(110, 255, 145);
+      rect(loadingBarX + 1, loadingBarY + 1, (loadingBarWidth - 2) * bootProgress, loadingBarHeight - 2);
+      noGlow();
+
+      if (bootElapsedFrames >= 480) loading = false;
+      textAlign(LEFT, TOP);
+    } else {
+      // Prompt phase: greeting + YES/NO option hints + input prompt
+      glowColor(80, 255, 120, 10);
+      fill(110, 255, 145);
+
+      let screenPaddingX = monitorScreenWidth * 0.06;
+      let screenPaddingY = monitorScreenHeight * 0.18;
+
+      textSize(monitorScreenHeight * 0.08);
+      if (frameCount % 10 == 0) {
+        if (index <= texts[1].length) {
+          displayText = texts[1].substring(0, index++);
+          if (index < texts[1].length) displayText = displayText + "_";
+        } else {
+          writing = true;
+        }
+      }
+      text(displayText || "", screenLeftX + screenPaddingX, screenTopY + screenPaddingY);
+
+      if (writing) {
+        // Show option hints (dim) once typing is enabled
+        fill(60, 200, 100);
+        textSize(monitorScreenHeight * 0.07);
+        text("> YES", screenLeftX + screenPaddingX, screenTopY + screenPaddingY + monitorScreenHeight * 0.15);
+        text("> NO",  screenLeftX + screenPaddingX, screenTopY + screenPaddingY + monitorScreenHeight * 0.24);
+
+        // Active input line below the hints, brighter
+        fill(130, 255, 160);
+        textSize(monitorScreenHeight * 0.08);
+        let inputCursor = (frameCount % 60 < 30) ? "_" : " ";
+        text("> " + textInput + inputCursor,
+             screenLeftX + screenPaddingX, screenTopY + screenPaddingY + monitorScreenHeight * 0.36);
+      }
+      noGlow();
+    }
+  } else {
+    // Idle state — header + centered click hint
+    fill(40, 180, 90);
+    let screenPaddingX = monitorScreenWidth * 0.06;
+    let screenPaddingY = monitorScreenHeight * 0.06;
+    textSize(monitorScreenHeight * 0.07);
+    glowColor(80, 255, 120, 5);
+    text("WOPR READY.", screenLeftX + screenPaddingX, screenTopY + screenPaddingY);
+    text("AWAITING CONNECTION...", screenLeftX + screenPaddingX, screenTopY + screenPaddingY + monitorScreenHeight * 0.08);
+
+    textAlign(CENTER, CENTER);
+    textSize(monitorScreenHeight * 0.08);
+    let promptBlink = (frameCount % 60 < 30);
+    fill(promptBlink ? 130 : 70, promptBlink ? 255 : 200, promptBlink ? 145 : 110);
+    text("[ CLICK SCREEN TO CONNECT ]", monitorCenterX, screenTopY + monitorScreenHeight * 0.85);
+    noGlow();
+    textAlign(LEFT, TOP);
+  }
+
+  // Subtle scanlines on the screen even before zoom — feels alive
+  noStroke();
+  for (let scanlineY = monitorCenterY - monitorScreenHeight / 2; scanlineY < monitorCenterY + monitorScreenHeight / 2; scanlineY += 3) {
+    fill(0, 0, 0, 40);
+    rect(monitorCenterX - monitorScreenWidth / 2, scanlineY, monitorScreenWidth, 1);
+  }
+
+  drawingContext.restore();
+  pop();
+}
+
+function drawTitleClickPrompt(promptCenterX, promptCenterY) {
+  push();
+  textFont(myFont);
+  textAlign(CENTER, CENTER);
+  let blink = (frameCount % 70 < 35);
+  fill(blink ? 200 : 120, blink ? 220 : 140, blink ? 255 : 180);
+  textSize(16);
+  text("CLICK THE MONITOR TO BEGIN", promptCenterX, promptCenterY);
+  pop();
+}
+
+
+/********************LOBBY ROUTING********************/
+// Chooses which lobby app or ending screen should be shown.
+function successlobby() {
+  // Win takes priority — if the player typed DEFCONV, lock to the victory screen
+  if (winMode) {
+    drawVictoryScreen();
+    return;
+  }
+  // If the 15-min timer hit 0, lock to the failure screen no matter what
+  if (failureMode) {
+    drawFailureScreen();
+    return;
+  }
+  // Auto-flip failureMode if elapsed has passed (covers screens that don't
+  // call getTimerDisplayString every frame — e.g. zoom-on-newspaper)
+  if (timerStartMs !== null && (millis() - timerStartMs) >= TIMER_DURATION_MS) {
+    failureMode = true;
+    failureStartMs = millis();
+    failureTypedIndex = 0;
+    drawFailureScreen();
+    return;
+  }
+
+  background(C_BG[0], C_BG[1], C_BG[2]);
+
+  if (screen === "lobby") {
+    drawLobbyBackground();
+    updateAppTileHovers();
+    drawSidebarShortcuts();
+    drawMiniTerminalWindow();
+    drawLobbyStatusBar();
+  } else if (screen === "challenge one") {
+    drawPasswordScreen();
+  } else if (screen === "success") {
+    drawSuccessScreen();
+  } else if (screen === "newspaper") {
+    drawNewspaperScreen();
+  } else if (screen === "cipher") {
+    drawCipherScreen();
+  } else if (screen === "finalpuzzle") {
+    drawPigeonCipher();
+  } else if (screen === "circuits") {
+    drawCircuitsPuzzle();
+  }
+}
+
+
+/********************REUSABLE CHROME********************/
+// Shared terminal frame, header, footer, and button bits.
+function drawTerminalFrame() {
+  push();
+  stroke(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
+  strokeWeight(1);
+  crtGlow(0.5);
+  noFill();
+  rect(15, 15, width - 30, height - 30);
+  rect(20, 20, width - 40, height - 40);
+  noGlow();
+  pop();
+}
+
+function drawTerminalHeader(leftText, rightText) {
+  push();
+  noStroke();
+  fill(0, 50, 22);
+  rect(25, 25, width - 50, 50);
+
+  glowColor(80, 255, 120, 12);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textFont(myFont);
+  textSize(22);
+  textAlign(LEFT, CENTER);
+  text(leftText, 40, 50);
+  if (rightText) {
+    textAlign(RIGHT, CENTER);
+    textSize(16);
+    text(rightText, width - 40, 50);
+  }
+  noGlow();
+  stroke(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  strokeWeight(1);
+  line(25, 75, width - 25, 75);
+  pop();
+}
+
+// DEFCON readout — V IV III II I, drawn into the right side of the header.
+// `activeLevel` is 1..5; that one glows, others are dim.
+function drawDefconReadout(activeLevel) {
+  let defconLevels = [
+    { label: "V",   value: 5 },
+    { label: "IV",  value: 4 },
+    { label: "III", value: 3 },
+    { label: "II",  value: 2 },
+    { label: "I",   value: 1 }
+  ];
+
+  push();
+  textFont(myFont);
+  textAlign(CENTER, CENTER);
+
+  // "DEFCON" label first, then the 5 boxes
+  let readoutCenterY = 50;
+  let levelBoxWidth = 30;
+  let levelBoxHeight = 26;
+  let levelBoxGap = 4;
+  let totalReadoutWidth = 5 * levelBoxWidth + 4 * levelBoxGap;
+
+  // right-edge-anchored layout
+  let readoutRightEdgeX = width - 40;
+  let readoutStartX = readoutRightEdgeX - totalReadoutWidth;
+
+  // "DEFCON" sits to the left of the row
+  noStroke();
+  crtGlow(0.4);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textSize(14);
+  textAlign(RIGHT, CENTER);
+  text("DEFCON", readoutStartX - 8, readoutCenterY);
+  noGlow();
+
+  rectMode(CORNER);
+  for (let i = 0; i < defconLevels.length; i++) {
+    let levelData = defconLevels[i];
+    let levelBoxX = readoutStartX + i * (levelBoxWidth + levelBoxGap);
+    let levelBoxY = readoutCenterY - levelBoxHeight / 2;
+    let isActiveLevel = (levelData.value === activeLevel);
+
+    // box
+    if (isActiveLevel) {
+      let glowPulse = 0.6 + 0.4 * sin(frameCount * 0.12);
+      drawingContext.shadowBlur = 18 * glowPulse;
+      drawingContext.shadowColor = "rgba(80, 255, 130, 0.9)";
+      noFill();
+      stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+      strokeWeight(1.6);
+    } else {
+      noGlow();
+      noFill();
+      stroke(C_GREEN_FAINT[0], C_GREEN_FAINT[1], C_GREEN_FAINT[2]);
+      strokeWeight(1);
+    }
+    rect(levelBoxX, levelBoxY, levelBoxWidth, levelBoxHeight, 2);
+    noGlow();
+
+    // label
+    noStroke();
+    if (isActiveLevel) {
+      crtGlow(0.7);
+      fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+    } else {
+      fill(C_GREEN_FAINT[0], C_GREEN_FAINT[1], C_GREEN_FAINT[2]);
+    }
+    textAlign(CENTER, CENTER);
+    textSize(isActiveLevel ? 15 : 13);
+    text(levelData.label, levelBoxX + levelBoxWidth / 2, levelBoxY + levelBoxHeight / 2);
+    noGlow();
+  }
+  pop();
+}
+
+function drawTerminalFooter(hintLeft, hintRight) {
+  push();
+  stroke(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  strokeWeight(1);
+  line(25, height - 55, width - 25, height - 55);
+
+  noStroke();
+  fill(0, 40, 18);
+  rect(25, height - 54, width - 50, 29);
+
+  crtGlow(0.35);
+  fill(C_GREEN[0], C_GREEN[1], C_GREEN[2]);
+  textFont(myFont);
+  textSize(15);
+  textAlign(LEFT, CENTER);
+  text(hintLeft, 40, height - 39);
+  if (hintRight) {
+    textAlign(RIGHT, CENTER);
+    text(hintRight, width - 40, height - 39);
+  }
+  noGlow();
+  pop();
+}
+
+function drawTermButton(x, y, w, h, label, opts) {
+  opts = opts || {};
+  let hover = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h;
+
+  push();
+  noFill();
+  if (hover) {
+    stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+    strokeWeight(2);
+    crtGlow(0.8);
+  } else {
+    stroke(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
+    strokeWeight(1);
+    crtGlow(0.3);
+  }
+  rect(x, y, w, h, 2);
+  noGlow();
+
+  noStroke();
+  fill(hover ? C_GREEN_HI[0] : C_GREEN[0],
+       hover ? C_GREEN_HI[1] : C_GREEN[1],
+       hover ? C_GREEN_HI[2] : C_GREEN[2]);
+  textFont(myFont);
+  textSize(opts.size || 17);
+  textAlign(CENTER, CENTER);
+  text(label, x + w / 2, y + h / 2);
+  pop();
+}
+
+function getFooterLabelRect(label) {
+  textFont(myFont);
+  textSize(15);
+
+  return {
+    x: 40,
+    y: height - 50,
+    w: textWidth(label) + 18,
+    h: 24
+  };
+}
+
+function getFooterExitRect() {
+  return getFooterLabelRect("[ EXIT ] CLICK TO RETURN TO LOBBY");
+}
+
+function getFooterBackRect() {
+  return getFooterLabelRect("[ BACK ] RETURN TO TERMINAL");
+}
+
+function footerExitClicked() {
+  let r = getFooterExitRect();
+  return mouseX >= r.x && mouseX <= r.x + r.w &&
+         mouseY >= r.y && mouseY <= r.y + r.h;
+}
+
+function footerBackClicked() {
+  let r = getFooterBackRect();
+  return mouseX >= r.x && mouseX <= r.x + r.w &&
+         mouseY >= r.y && mouseY <= r.y + r.h;
+}
+
+function leaveFinalPuzzle() {
+  screen = "challenge one";
+  typedText = "";
+  currentIndex = 0;
+  lastSwitch = millis();
+}
+
+
+/********************LOBBY BACKGROUND********************/
+// Background grid, timer bar, and bottom status strip.
+function drawLobbyBackground() {
+  push();
+  // subtle grid
+  stroke(0, 70, 24, 70);
+  strokeWeight(0.4);
+  for (let x = 0; x < width; x += 35) line(x, 0, x, height);
+  for (let y = 0; y < height; y += 35) line(0, y, width, y);
+
+  // top header bar
+  noStroke();
+  fill(0, 50, 22);
+  rect(0, 0, width, 24);
+  stroke(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  strokeWeight(1);
+  line(0, 24, width, 24);
+
+  noStroke();
+  crtGlow(0.45);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textFont(myFont);
+  textSize(15);
+  textAlign(LEFT, CENTER);
+  text("NORAD // W.O.P.R. TERMINAL  •  CLASSIFIED", 10, 12);
+
+  // ---- Top-right: ACCESS:DENIED reveal (linked to game timer) ----
+  // Turn red as a warning once ≤30% of the timer remains. Also strobe.
+  let warning = false;
+  if (timerStartMs !== null) {
+    let frac = (millis() - timerStartMs) / TIMER_DURATION_MS;
+    if (frac >= 0.7) warning = true;
+  }
+  if (warning) {
+    // Strobe — alternate every ~10 frames between bright red and dim red
+    let strobe = (frameCount % 20 < 10);
+    if (strobe) {
+      drawingContext.shadowBlur = 18;
+      drawingContext.shadowColor = "rgba(255, 80, 80, 1.0)";
+      fill(255, 130, 130);
+    } else {
+      drawingContext.shadowBlur = 6;
+      drawingContext.shadowColor = "rgba(255, 80, 80, 0.4)";
+      fill(140, 30, 30);
+    }
+  }
+  textAlign(RIGHT, CENTER);
+  textSize(15);
+  text(getTimerDisplayString(), width - 10, 12);
+  noGlow();
+  pop();
+}
+
+// Returns the partially-revealed/scrambled ACCESS:DENIED string based on the
+// elapsed game-timer fraction. As more time passes, more letters lock to their
+// correct value; unlocked positions cycle through random characters.
+function getTimerDisplayString() {
+  if (timerStartMs === null) return TIMER_TARGET;
+
+  let elapsed = millis() - timerStartMs;
+  let frac = constrain(elapsed / TIMER_DURATION_MS, 0, 1);
+  let totalChars = TIMER_TARGET.length;
+  // Number of locked-in letters scales with elapsed fraction
+  let lockedCount = Math.floor(frac * totalChars);
+  // Once we hit 0:00, set failure mode (caller checks this each frame too)
+  if (elapsed >= TIMER_DURATION_MS && !failureMode) {
+    failureMode = true;
+    failureStartMs = millis();
+    failureTypedIndex = 0;
+  }
+
+  let scrambleSet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#@$%&*!?:";
+  let out = "";
+  // Use a fast cycling clock so unlocked chars visibly scramble
+  // (changes ~every 3 frames)
+  let cycle = Math.floor(frameCount / 3);
+  for (let i = 0; i < totalChars; i++) {
+    let trueCh = TIMER_TARGET.charAt(i);
+    if (i < lockedCount) {
+      // locked — show the real letter
+      out += trueCh;
+    } else {
+      // Deterministic per (i, cycle) so they look like they're decoding
+      let seed = (i * 37 + cycle * 13) % scrambleSet.length;
+      // mix in a non-linear hop so adjacent positions scramble differently
+      seed = (seed + Math.floor(Math.sin(cycle * 0.7 + i) * 1000)) % scrambleSet.length;
+      if (seed < 0) seed += scrambleSet.length;
+      out += scrambleSet.charAt(seed);
+    }
+  }
+  return out;
+}
+
+function drawLobbyStatusBar() {
+  push();
+  noStroke();
+  fill(0, 50, 22);
+  rect(0, height - 24, width, 24);
+  stroke(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  strokeWeight(1);
+  line(0, height - 24, width, height - 24);
+
+  // blinking REC dot
+  noStroke();
+  let blink = (frameCount % 60 < 30);
+  if (blink) {
+    glowColor(255, 70, 70, 10);
+    fill(255, 70, 70);
+    ellipse(14, height - 12, 7, 7);
+  }
+  noGlow();
+
+  crtGlow(0.4);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textFont(myFont);
+  textSize(14);
+  textAlign(LEFT, CENTER);
+  text("REC  •  LINK: SECURE  •  ENCRYPT: ON", 26, height - 12);
+
+  // dynamic hint — depends on which app is hovered
+  textAlign(RIGHT, CENTER);
+  let hoveredApp = appTiles.find(function (a) { return a.hovered; });
+  let hint;
+  if (hoveredApp) {
+    hint = "[ CLICK ] OPEN " + hoveredApp.label.toUpperCase();
+  } else {
+    hint = "SELECT APPLICATION";
+  }
+  text(hint, width - 10, height - 12);
+  noGlow();
+  pop();
+}
+
+
+
+/********************LOBBY APPS********************/
+// Sidebar shortcuts and the decorative mini terminal window.
+function updateAppTileHovers() {
+  for (let i = 0; i < appTiles.length; i++) {
+    let a = appTiles[i];
+    a.hovered =
+      mouseX >= a.x && mouseX <= a.x + a.w &&
+      mouseY >= a.y && mouseY <= a.y + a.h;
+  }
+  // mini-terminal hover (everything except the title bar — title bar isn't a hot zone)
+  let r = miniTermRect;
+  miniTermHovered =
+    mouseX >= r.x && mouseX <= r.x + r.w &&
+    mouseY >= r.y && mouseY <= r.y + r.h;
+}
+
+function drawSidebarShortcuts() {
+  push();
+  // Sidebar panel (a faint vertical strip down the left)
+  noStroke();
+  fill(6, 16, 10);
+  rect(0, 25, 130, height - 49);
+  stroke(C_GREEN_FAINT[0], C_GREEN_FAINT[1], C_GREEN_FAINT[2]);
+  strokeWeight(1);
+  line(130, 25, 130, height - 24);
+
+  // little label up top
+  noStroke();
+  crtGlow(0.3);
+  fill(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
+  textFont(myFont);
+  textSize(12);
+  textAlign(CENTER, TOP);
+  text("APPS", 70, 35);
+  noGlow();
+  pop();
+
+  // Each shortcut
+  for (let i = 0; i < appTiles.length; i++) {
+    drawSidebarShortcut(appTiles[i]);
+  }
+}
+
+function drawSidebarShortcut(a) {
+  push();
+  rectMode(CORNER);
+
+  // hover background
+  if (a.hovered) {
+    noStroke();
+    fill(0, 50, 22);
+    rect(a.x - 4, a.y - 4, a.w + 8, a.h + 8, 4);
+    crtGlow(0.7);
+    noFill();
+    stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+    strokeWeight(1.4);
+    rect(a.x - 4, a.y - 4, a.w + 8, a.h + 8, 4);
+    noGlow();
+  }
+
+  // icon centered horizontally inside the shortcut, near the top
+  let iconCx = a.x + a.w / 2;
+  let iconCy = a.y + 30;
+  drawAppIcon(a.icon, iconCx, iconCy, a.hovered);
+
+  // label under icon
+  noStroke();
+  crtGlow(a.hovered ? 0.5 : 0.25);
+  fill(a.hovered ? C_GREEN_HI[0] : C_GREEN[0],
+       a.hovered ? C_GREEN_HI[1] : C_GREEN[1],
+       a.hovered ? C_GREEN_HI[2] : C_GREEN[2]);
+  textFont(myFont);
+  textAlign(CENTER, TOP);
+  textSize(15);
+  text(a.label, a.x + a.w / 2, a.y + 64);
+  noGlow();
+  pop();
+}
+
+function drawAppIcon(iconType, iconCenterX, iconCenterY, isHovered) {
+  push();
+  rectMode(CENTER);
+  noFill();
+  let iconColor = isHovered ? C_GREEN_HI : C_GREEN;
+  stroke(iconColor[0], iconColor[1], iconColor[2]);
+  strokeWeight(1.6);
+  crtGlow(isHovered ? 0.7 : 0.35);
+
+  if (iconType === "terminal") {
+    // monitor body
+    rect(iconCenterX, iconCenterY, 44, 32, 2);
+    // screen inset
+    rect(iconCenterX, iconCenterY - 1, 36, 24, 1.5);
+    // prompt text inside
+    noStroke();
+    fill(iconColor[0], iconColor[1], iconColor[2]);
+    textFont(myFont);
+    textSize(11);
+    textAlign(LEFT, CENTER);
+    text(">_", iconCenterX - 14, iconCenterY - 1);
+    // stand
+    stroke(iconColor[0], iconColor[1], iconColor[2]);
+    strokeWeight(1.4);
+    line(iconCenterX - 6, iconCenterY + 18, iconCenterX + 6, iconCenterY + 18);
+    line(iconCenterX,     iconCenterY + 16, iconCenterX,     iconCenterY + 18);
+  } else if (iconType === "newspaper") {
+    // folded paper
+    rect(iconCenterX, iconCenterY, 38, 36, 1.5);
+    // header band
+    stroke(iconColor[0], iconColor[1], iconColor[2]);
+    line(iconCenterX - 15, iconCenterY - 11, iconCenterX + 15, iconCenterY - 11);
+    line(iconCenterX - 15, iconCenterY - 9,  iconCenterX + 15, iconCenterY - 9);
+    // title pseudo-text
+    noStroke();
+    fill(iconColor[0], iconColor[1], iconColor[2]);
+    textFont(myFont);
+    textSize(7);
+    textAlign(CENTER, CENTER);
+    text("HERALD", iconCenterX, iconCenterY - 15);
+    // body lines
+    stroke(iconColor[0], iconColor[1], iconColor[2]);
+    strokeWeight(0.9);
+    for (let i = 0; i < 4; i++) {
+      let bodyLineY = iconCenterY - 5 + i * 4;
+      let bodyLineWidth = (i % 2 === 0) ? 14 : 11;
+      line(iconCenterX - 15, bodyLineY, iconCenterX - 15 + bodyLineWidth, bodyLineY);
+      line(iconCenterX + 1,  bodyLineY, iconCenterX + 1 + bodyLineWidth - 2, bodyLineY);
+    }
+    // column divider
+    line(iconCenterX - 1, iconCenterY - 5, iconCenterX - 1, iconCenterY + 11);
+  } else if (iconType === "cipher") {
+    // small notepad — lines ruled inside
+    rect(iconCenterX, iconCenterY, 36, 36, 1.5);
+    // top binding strip
+    stroke(iconColor[0], iconColor[1], iconColor[2]);
+    strokeWeight(0.9);
+    line(iconCenterX - 18, iconCenterY - 11, iconCenterX + 18, iconCenterY - 11);
+    // ruled lines
+    for (let i = 0; i < 4; i++) {
+      let ruledLineY = iconCenterY - 6 + i * 5;
+      line(iconCenterX - 14, ruledLineY, iconCenterX + 14, ruledLineY);
+    }
+    // dog-ear corner
+    noStroke();
+    fill(iconColor[0], iconColor[1], iconColor[2], 80);
+    triangle(iconCenterX + 12, iconCenterY - 18, iconCenterX + 18, iconCenterY - 18, iconCenterX + 18, iconCenterY - 12);
+  }
+  noGlow();
+  pop();
+}
+
+
+function drawMiniTerminalWindow() {
+  let terminalWindowRect = miniTermRect;
+
+  push();
+  rectMode(CORNER);
+
+  // Window drop shadow
+  noStroke();
+  fill(0, 0, 0, 110);
+  rect(terminalWindowRect.x + 5, terminalWindowRect.y + 5, terminalWindowRect.w, terminalWindowRect.h, 3);
+
+  // Window body — black like a real terminal (purely decorative, no hover state)
+  fill(0);
+  stroke(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
+  strokeWeight(1);
+  crtGlow(0.25);
+  rect(terminalWindowRect.x, terminalWindowRect.y, terminalWindowRect.w, terminalWindowRect.h, 3);
+  noGlow();
+
+  // Title bar — Windows-style blue strip
+  noStroke();
+  fill(0, 90, 170);
+  rect(terminalWindowRect.x, terminalWindowRect.y, terminalWindowRect.w, 26, 3);
+  // square off bottom of title bar
+  rect(terminalWindowRect.x, terminalWindowRect.y + 18, terminalWindowRect.w, 8);
+
+  // Title bar icon
+  noStroke();
+  fill(20, 50, 90);
+  rect(terminalWindowRect.x + 6, terminalWindowRect.y + 5, 16, 16, 1);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textFont(myFont);
+  textSize(11);
+  textAlign(LEFT, CENTER);
+  text("C:\\>", terminalWindowRect.x + 9, terminalWindowRect.y + 13);
+
+  // Title bar label
+  fill(255);
+  textFont(myFont);
+  textSize(13);
+  textAlign(LEFT, CENTER);
+  text("Developer Command Prompt for VS2015", terminalWindowRect.x + 28, terminalWindowRect.y + 13);
+
+  // Window controls (—  ☐  ✕)
+  textAlign(CENTER, CENTER);
+  textSize(14);
+  fill(220);
+  text("—", terminalWindowRect.x + terminalWindowRect.w - 56, terminalWindowRect.y + 13);
+  noFill();
+  stroke(220);
+  strokeWeight(1);
+  rect(terminalWindowRect.x + terminalWindowRect.w - 41, terminalWindowRect.y + 8, 10, 9);
+  // X
+  noFill();
+  // close button background hover-look
+  noStroke();
+  fill(200, 50, 50);
+  rect(terminalWindowRect.x + terminalWindowRect.w - 24, terminalWindowRect.y, 24, 26, 0, 3, 0, 0);
+  fill(255);
+  textFont(myFont);
+  textSize(14);
+  textAlign(CENTER, CENTER);
+  text("X", terminalWindowRect.x + terminalWindowRect.w - 12, terminalWindowRect.y + 13);
+
+  // Terminal content inside the mini window.
+  let terminalTextStartX = terminalWindowRect.x + 14;
+  let terminalTextStartY = terminalWindowRect.y + 38;
+  let terminalLineHeight = 18;
+
+  noStroke();
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textFont(myFont);
+  textSize(15);
+  textAlign(LEFT, TOP);
+  crtGlow(0.4);
+
+  let terminalLines = [
+    "c:\\users\\falken\\Desktop>clip /?",
+    "",
+    "CLIP",
+    "",
+    "Description:",
+    "    In 45 minutes, this automated system will initate Protocol: Cleanse.",
+    "    Prove your intelligence. Prove your kind deserves to live.",
+    "",
+    "Parameter List:",
+    "    /?              Do not rely only on software.",
+    "",
+    "Imperative:",
+    "    DIR | CLIP      Leave nothing unturned.",
+    "",
+    "    CLIP < README.TXT  XIRXFRGH",
+    "",
+    "c:\\users\\falken\\Desktop>ver | clip",
+    "",
+    "c:\\users\\falken\\Desktop>",
+    "c:\\users\\falken\\Desktop>Microsoft Windows [Version 10.0.10586]"
+  ];
+
+  for (let i = 0; i < terminalLines.length; i++) {
+    let terminalLineY = terminalTextStartY + i * terminalLineHeight;
+    if (terminalLineY + terminalLineHeight > terminalWindowRect.y + terminalWindowRect.h - 6) break; // clip overflow
+    text(terminalLines[i], terminalTextStartX, terminalLineY);
+  }
+
+  noGlow();
+
+  // (The mini terminal is decorative-only — clicking it does nothing.
+  //  Use the Terminal shortcut in the left sidebar to open the W.O.P.R.
+  //  password screen.)
+
+  pop();
+}
+
+
+/********************CIPHER SCREEN********************/
+// Fullscreen version of the note that acts as the cipher key.
+function drawCipherScreen() {
+  background(C_BG[0], C_BG[1], C_BG[2]);
+  drawTerminalFrame();
+  drawTerminalHeader("NOTES // PERSONAL ARCHIVE",
+                     "FILE: NOTE-04.SCAN");
+
+  if (cipherNoteBuffer === null) {
+    cipherNoteBuffer = createGraphics(310, 390);
+    cipherNoteBuffer.pixelDensity(2);
+    buildCipherNote(cipherNoteBuffer);
+  }
+
+  imageMode(CORNER);
+  let noteDisplayWidth = 310;
+  let noteDisplayHeight = 390;
+  let noteDisplayX = (width - noteDisplayWidth) / 2;
+  let noteDisplayY = 100;
+  image(cipherNoteBuffer, noteDisplayX, noteDisplayY, noteDisplayWidth, noteDisplayHeight);
+
+  // green CRT wash over paper (so it feels rendered "on" the terminal)
+  push();
+  noStroke();
+  fill(0, 110, 38, 50);
+  rect(noteDisplayX, noteDisplayY, noteDisplayWidth, noteDisplayHeight);
+  pop();
+
+  // helper text below
+  push();
+  crtGlow(0.3);
+  fill(C_GREEN[0], C_GREEN[1], C_GREEN[2]);
+  textFont(myFont);
+  textSize(14);
+  textAlign(CENTER, TOP);
+  text("> SCANNED NOTE FROM PERSONAL FILES.",
+       width / 2, noteDisplayY + noteDisplayHeight + 14);
+  noGlow();
+  pop();
+
+  drawTerminalFooter("[ CLICK ] RETURN TO LOBBY",
+                     "NOTE • CLASSIFIED");
+}
+
+// Builds the cipher key onto an offscreen buffer.
+// Same content as the old sticky note, scaled up for a full-screen display.
+function buildCipherNote(noteGraphic) {
+  let noteGraphicWidth = noteGraphic.width;
+  let noteGraphicHeight = noteGraphic.height;
+
+  // paper body
+  noteGraphic.background(255, 240, 110);
+  noteGraphic.stroke(180, 165, 50);
+  noteGraphic.strokeWeight(1.5);
+  noteGraphic.noFill();
+  noteGraphic.rect(1, 1, noteGraphicWidth - 2, noteGraphicHeight - 2);
+
+  // folded corner
+  noteGraphic.noStroke();
+  noteGraphic.fill(210, 195, 70);
+  noteGraphic.triangle(noteGraphicWidth - 28, 0, noteGraphicWidth, 0, noteGraphicWidth, 28);
+  noteGraphic.fill(170, 155, 45);
+  noteGraphic.triangle(noteGraphicWidth - 28, 0, noteGraphicWidth, 28, noteGraphicWidth - 28, 28);
+
+  // Title
+  noteGraphic.fill(40, 28, 0);
+  noteGraphic.noStroke();
+  noteGraphic.textFont("Arial");
+  noteGraphic.textStyle(BOLD);
+  noteGraphic.textSize(18);
+  noteGraphic.textAlign(CENTER, TOP);
+  noteGraphic.text("NOTE", noteGraphicWidth / 2, 14);
+
+  // Grid
+  let noteGridStartX = 24;
+  let noteGridStartY = 50;
+  let noteCellWidth = 86;
+  let noteCellHeight = 108;
+
+  noteGraphic.stroke(70, 50, 0);
+  noteGraphic.strokeWeight(2);
+  noteGraphic.line(noteGridStartX + noteCellWidth,     noteGridStartY, noteGridStartX + noteCellWidth,     noteGridStartY + 3 * noteCellHeight);
+  noteGraphic.line(noteGridStartX + 2 * noteCellWidth, noteGridStartY, noteGridStartX + 2 * noteCellWidth, noteGridStartY + 3 * noteCellHeight);
+  noteGraphic.line(noteGridStartX, noteGridStartY + noteCellHeight,     noteGridStartX + 3 * noteCellWidth, noteGridStartY + noteCellHeight);
+  noteGraphic.line(noteGridStartX, noteGridStartY + 2 * noteCellHeight, noteGridStartX + 3 * noteCellWidth, noteGridStartY + 2 * noteCellHeight);
+
+  let noteCells = [
+    { letters: "N, M, A,", circle: true,  cross: true  },
+    { letters: "Z, T, L,", circle: true,  cross: true  },
+    { letters: "V, Y, I,", circle: true,  cross: true  },
+    { letters: "E, K, U,", circle: true,  cross: true  },
+    { letters: "O, W, X,", circle: true,  cross: true  },
+    { letters: "D, P, H,", circle: true,  cross: true  },
+    { letters: "F, Q, R,", circle: true,  cross: true  },
+    { letters: "J, S, B",  circle: true,  cross: true  },
+    { letters: "C, G",     circle: true,  cross: false },
+  ];
+
+  noteGraphic.textFont("Arial");
+  noteGraphic.textStyle(NORMAL);
+  noteGraphic.textSize(15);
+  for (let i = 0; i < 9; i++) {
+    let rowIndex = Math.floor(i / 3);
+    let columnIndex = i % 3;
+    let noteCellCenterX = noteGridStartX + columnIndex * noteCellWidth + noteCellWidth / 2;
+    let noteCellTopY = noteGridStartY + rowIndex * noteCellHeight;
+    let noteCellData = noteCells[i];
+    let symbolRowY = noteCellTopY + 24;
+    let symbolRadius = 5;
+
+    // Parse the letter list (e.g. "N, M, A,") into individual letters in order.
+    // Then we lay them out left-to-right at a fixed left edge, and place
+    // symbols directly above letter 2 and letter 3 using textWidth measurements.
+    let noteLetters = noteCellData.letters
+      .split(",")
+      .map(function (letterPiece) { return letterPiece.trim(); })
+      .filter(function (letterPiece) { return letterPiece.length > 0; });
+
+    let letterRowY = noteCellTopY + 42;
+    let letterRowStartX = noteCellCenterX - 28; // left edge of the letter row inside the cell
+    let letterGap = 8;                          // visual gap between letters
+
+    // Compute X centre of each letter as we lay them out.
+    let letterCenterPoints = [];
+    let letterCursorX = letterRowStartX;
+    for (let k = 0; k < noteLetters.length; k++) {
+      let letterGlyph = noteLetters[k] + ",";
+      let letterGlyphWidth = noteGraphic.textWidth(letterGlyph);
+      letterCenterPoints.push(letterCursorX + letterGlyphWidth / 2);
+      letterCursorX += letterGlyphWidth + letterGap;
+    }
+
+    // Symbols above letters 2 and 3 (if those letters exist)
+    if (noteCellData.circle && letterCenterPoints.length >= 2) {
+      noteGraphic.stroke(70, 70, 70);
+      noteGraphic.strokeWeight(1.4);
+      noteGraphic.noFill();
+      noteGraphic.ellipse(letterCenterPoints[1], symbolRowY, symbolRadius * 2, symbolRadius * 2);
+    }
+    if (noteCellData.cross && letterCenterPoints.length >= 3) {
+      noteGraphic.stroke(70, 70, 70);
+      noteGraphic.strokeWeight(1.4);
+      noteGraphic.noFill();
+      let crossCenterX = letterCenterPoints[2];
+      noteGraphic.line(crossCenterX - 4, symbolRowY - 4, crossCenterX + 4, symbolRowY + 4);
+      noteGraphic.line(crossCenterX + 4, symbolRowY - 4, crossCenterX - 4, symbolRowY + 4);
+    }
+
+    // Draw letters
+    noteGraphic.noStroke();
+    noteGraphic.fill(40, 30, 0);
+    noteGraphic.textAlign(LEFT, TOP);
+    letterCursorX = letterRowStartX;
+    for (let k = 0; k < noteLetters.length; k++) {
+      let letterGlyph = noteLetters[k] + ",";
+      noteGraphic.text(letterGlyph, letterCursorX, letterRowY);
+      letterCursorX += noteGraphic.textWidth(letterGlyph) + letterGap;
+    }
+  }
+
+  // "tape" strip at top
+  noteGraphic.fill(255, 255, 255, 140);
+  noteGraphic.noStroke();
+  noteGraphic.rect(noteGraphicWidth / 2 - 55, -8, 110, 18);
+}
+
+
+/********************NEWSPAPER SCREEN********************/
+// Archive paper view plus zoomed article sections.
+function drawNewspaperScreen() {
+  background(C_BG[0], C_BG[1], C_BG[2]);
+  drawTerminalFrame();
+
+  // If a section is zoomed, render that view and bail out
+  if (zoomedSection !== null) {
+    drawNewspaperZoom();
+    return;
+  }
+
+  drawTerminalHeader("EVIDENCE // ARCHIVE SCAN", "FILE: HERALD-05221927.SCAN");
+
+  if (newspaperBuffer === null) {
+    newspaperBuffer = createGraphics(500, 600);
+    newspaperBuffer.pixelDensity(2);  // sharper text when scaled
+    newspaperBuffer.textFont("Times New Roman");
+    buildNewspaper(newspaperBuffer);
+  }
+
+  imageMode(CORNER);
+  let newspaperDisplayHeight = 490;
+  let newspaperDisplayWidth = 500 * (newspaperDisplayHeight / 600);
+  let newspaperDisplayX = (width - newspaperDisplayWidth) / 2;
+  let newspaperDisplayY = 92;
+  image(newspaperBuffer, newspaperDisplayX, newspaperDisplayY, newspaperDisplayWidth, newspaperDisplayHeight);
+
+  // green CRT wash over paper
+  push();
+  noStroke();
+  fill(0, 120, 40, 45);
+  rect(newspaperDisplayX, newspaperDisplayY, newspaperDisplayWidth, newspaperDisplayHeight);
+  pop();
+
+  // Detect hovered section + draw hover halo
+  hoveredNewspaperSection = null;
+  for (let i = 0; i < newspaperSections.length; i++) {
+    let hoveredSectionData = newspaperSections[i];
+    let sectionHighlightX = newspaperDisplayX + hoveredSectionData.sx * newspaperDisplayWidth;
+    let sectionHighlightY = newspaperDisplayY + hoveredSectionData.sy * newspaperDisplayHeight;
+    let sectionHighlightWidth = hoveredSectionData.sw * newspaperDisplayWidth;
+    let sectionHighlightHeight = hoveredSectionData.sh * newspaperDisplayHeight;
+    let isSectionHovered = mouseX >= sectionHighlightX && mouseX <= sectionHighlightX + sectionHighlightWidth &&
+                mouseY >= sectionHighlightY && mouseY <= sectionHighlightY + sectionHighlightHeight;
+    if (isSectionHovered) hoveredNewspaperSection = hoveredSectionData;
+
+    push();
+    noFill();
+    if (isSectionHovered) {
+      crtGlow(0.9);
+      stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+      strokeWeight(2);
+      rect(sectionHighlightX, sectionHighlightY, sectionHighlightWidth, sectionHighlightHeight, 2);
+      noGlow();
+      // corner brackets
+      stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+      strokeWeight(2);
+      let cornerBracketLength = 8;
+      line(sectionHighlightX, sectionHighlightY, sectionHighlightX + cornerBracketLength, sectionHighlightY);
+      line(sectionHighlightX, sectionHighlightY, sectionHighlightX, sectionHighlightY + cornerBracketLength);
+      line(sectionHighlightX + sectionHighlightWidth, sectionHighlightY, sectionHighlightX + sectionHighlightWidth - cornerBracketLength, sectionHighlightY);
+      line(sectionHighlightX + sectionHighlightWidth, sectionHighlightY, sectionHighlightX + sectionHighlightWidth, sectionHighlightY + cornerBracketLength);
+      line(sectionHighlightX, sectionHighlightY + sectionHighlightHeight, sectionHighlightX + cornerBracketLength, sectionHighlightY + sectionHighlightHeight);
+      line(sectionHighlightX, sectionHighlightY + sectionHighlightHeight, sectionHighlightX, sectionHighlightY + sectionHighlightHeight - cornerBracketLength);
+      line(sectionHighlightX + sectionHighlightWidth, sectionHighlightY + sectionHighlightHeight, sectionHighlightX + sectionHighlightWidth - cornerBracketLength, sectionHighlightY + sectionHighlightHeight);
+      line(sectionHighlightX + sectionHighlightWidth, sectionHighlightY + sectionHighlightHeight, sectionHighlightX + sectionHighlightWidth, sectionHighlightY + sectionHighlightHeight - cornerBracketLength);
+    }
+    pop();
+  }
+
+  let footerHint = hoveredNewspaperSection
+    ? "[ CLICK ] ZOOM " + hoveredNewspaperSection.title.toUpperCase()
+    : "[ CLICK ] RETURN TO LOBBY";
+  drawTerminalFooter(footerHint, "SOURCE: NYC ARCHIVE");
+}
+
+// Fullscreen view of a single newspaper section, rendered fresh
+// (no buffer scaling, so text is crisp)
+function drawNewspaperZoom() {
+  let zoomedSectionData = zoomedSection;
+  let zoomedSectionContent = newspaperContent[zoomedSectionData.id];
+
+  drawTerminalHeader("ARCHIVE SCAN // " + zoomedSectionData.title.toUpperCase(),
+                     "FILE: HERALD-05221927.SCAN");
+
+  push();
+  // Paper-style content panel
+  rectMode(CORNER);
+  let paperPanelX = 60;
+  let paperPanelY = 100;
+  let paperPanelWidth = width - 120;
+  let paperPanelHeight = height - 170;
+
+  // backing
+  noStroke();
+  fill(246, 242, 232);
+  rect(paperPanelX, paperPanelY, paperPanelWidth, paperPanelHeight, 2);
+  // subtle paper border
+  stroke(60);
+  strokeWeight(1);
+  noFill();
+  rect(paperPanelX, paperPanelY, paperPanelWidth, paperPanelHeight, 2);
+
+  // very faint green wash so it still feels "on the terminal"
+  noStroke();
+  fill(0, 110, 38, 28);
+  rect(paperPanelX, paperPanelY, paperPanelWidth, paperPanelHeight, 2);
+
+  // Section title (newspaper-style header)
+  noStroke();
+  fill(20);
+  textFont("Times New Roman");
+  textStyle(BOLD);
+  textSize(28);
+  textAlign(LEFT, TOP);
+  text(zoomedSectionData.title, paperPanelX + 24, paperPanelY + 22);
+
+  // double rule under title
+  stroke(40);
+  strokeWeight(1);
+  line(paperPanelX + 24, paperPanelY + 60, paperPanelX + paperPanelWidth - 24, paperPanelY + 60);
+  line(paperPanelX + 24, paperPanelY + 64, paperPanelX + paperPanelWidth - 24, paperPanelY + 64);
+
+  // Body content
+  noStroke();
+  fill(20);
+  textFont("Times New Roman");
+  textStyle(NORMAL);
+
+  if (zoomedSectionContent && zoomedSectionContent.lines) {
+    // Masthead: render each line larger
+    textSize(18);
+    let articleBodyY = paperPanelY + 80;
+    for (let i = 0; i < zoomedSectionContent.lines.length; i++) {
+      let articleLine = zoomedSectionContent.lines[i];
+      if (articleLine === "EXTRA EXTRA!") {
+        textStyle(BOLD);
+        textSize(36);
+        text(articleLine, paperPanelX + 24, articleBodyY);
+        articleBodyY += 44;
+        textStyle(NORMAL);
+        textSize(18);
+      } else if (articleLine === "speculation on human nature") {
+        textStyle(ITALIC);
+        text(articleLine, paperPanelX + 24, articleBodyY);
+        articleBodyY += 26;
+        textStyle(NORMAL);
+      } else if (articleLine.indexOf("NEKLAF") >= 0) {
+        textStyle(BOLD);
+        textSize(22);
+        text(articleLine, paperPanelX + 24, articleBodyY);
+        articleBodyY += 30;
+        textStyle(NORMAL);
+        textSize(18);
+      } else {
+        text(articleLine, paperPanelX + 24, articleBodyY);
+        articleBodyY += 24;
+      }
+    }
+  } else if (zoomedSectionData.id === "puzzle") {
+    // Render the actual minesweeper board large, with intro/outro prose around it
+    textSize(15);
+    text("Today's challenge from the Herald Tribune.",
+         paperPanelX + 24, paperPanelY + 78);
+
+    // Big board centered horizontally
+    let zoomedBoardSize = 280;
+    let zoomedBoardX = paperPanelX + paperPanelWidth / 2 - zoomedBoardSize / 2;
+    let zoomedBoardY = paperPanelY + 110;
+    drawZoomedPuzzleBoard(zoomedBoardX, zoomedBoardY, zoomedBoardSize);
+
+    textSize(14);
+    fill(50);
+    text("Identify the pattern. Answers in tomorrow's edition.",
+         paperPanelX + 24, zoomedBoardY + zoomedBoardSize + 30);
+  } else if (zoomedSectionContent && zoomedSectionContent.body) {
+    textSize(18);
+    text(zoomedSectionContent.body, paperPanelX + 24, paperPanelY + 80, paperPanelWidth - 48, paperPanelHeight - 110);
+  }
+  pop();
+
+  drawTerminalFooter("[ CLICK ] BACK TO PAPER", "SECTION: " + zoomedSectionData.id.toUpperCase());
+}
+
+
+/********************PASSWORD SCREEN********************/
+// First real terminal gate and later code-entry hub.
+function drawPasswordScreen() {
+  background(C_BG[0], C_BG[1], C_BG[2]);
+  drawTerminalFrame();
+  drawTerminalHeader("W.O.P.R. // SECURE ACCESS", "");
+  drawDefconReadout(5);
+
+  push();
+  crtGlow(0.5);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textFont(myFont);
+  textAlign(LEFT, TOP);
+
+  textSize(18);
+  text("> CONNECTION ESTABLISHED.", 50, 100);
+  text("> SYSTEM: AUTHORIZED PERSONNEL ONLY.", 50, 126);
+  text("> ENTER PASSPHRASE OR MODULE CODE.", 50, 152);
+
+  // prompt box
+  noFill();
+  stroke(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  strokeWeight(1);
+  rect(45, 210, width - 90, 48);
+
+  noStroke();
+  textSize(26);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  let cursor = (frameCount % 60 < 30) ? "_" : " ";
+  let promptPrefix = usernamePromptDismissed ? "> " : "> ENTER USERNAME: ";
+  text(promptPrefix + typedText + cursor, 55, 220);
+
+  // response message
+  textSize(20);
+  if (message === "ACCESS DENIED") {
+    glowColor(255, 70, 70, 10);
+    fill(C_RED[0], C_RED[1], C_RED[2]);
+    text(message, 50, 280);
+    // mock error details
+    noGlow();
+    fill(200, 50, 50);
+    textSize(14);
+    text("> ATTEMPT LOGGED.  RETRY LIMIT: UNBOUNDED.", 50, 310);
+  } else if (message) {
+    fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+    text(message, 50, 280);
+  }
+  noGlow();
+
+  // meta info panel
+  stroke(C_GREEN_FAINT[0], C_GREEN_FAINT[1], C_GREEN_FAINT[2]);
+  strokeWeight(1);
+  line(45, 380, width - 45, 380);
+
+  noStroke();
+  fill(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
+  textSize(14);
+  text("SESSION ID ..... 0x" + hex(frameCount + 0x48A12, 6), 50, 395);
+  text("LINK STATUS .... SECURE", 50, 415);
+  text("ENCRYPTION ..... 128-BIT STREAM", 50, 435);
+  text("AUTH MODE ...... PASSPHRASE + MODULE CODE", 50, 455);
+  text("WARNING ........ PRE-AUTHORIZED USERS ONLY", 50, 475);
+
+  // decorative scan ticker
+  textSize(13);
+  fill(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  let tick = floor(frameCount / 3) % 40;
+  let bar = ".".repeat(tick) + "|" + ".".repeat(40 - tick);
+  text("SCAN " + bar, 50, 505);
+  pop();
+
+  drawTerminalFooter("[ EXIT ] CLICK TO RETURN TO LOBBY",
+                     "ENTER TO SUBMIT  •  BACKSPACE TO EDIT");
+}
+
+
+/********************SUCCESS SCREEN********************/
+// Fake WOPR menu after the main password works.
+function drawSuccessScreen() {
+  background(C_BG[0], C_BG[1], C_BG[2]);
+  drawTerminalFrame();
+  drawTerminalHeader("W.O.P.R. // ACCESS GRANTED", "");
+  drawDefconReadout(5);
+
+  push();
+  textFont(myFont);
+  textAlign(CENTER, CENTER);
+
+  // Flickering big title
+  let flicker = (frameCount % 37 < 2) ? 150 : 255;
+  crtGlow(1);
+  fill(110, flicker, 140);
+  textSize(46);
+  text("ACCESS GRANTED", width / 2, 130);
+  noGlow();
+
+  crtGlow(0.5);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textSize(20);
+  text("WELCOME, PROFESSOR FALKEN.", width / 2, 180);
+  noGlow();
+
+  crtGlow(0.4);
+  fill(C_GREEN[0], C_GREEN[1], C_GREEN[2]);
+  textSize(18);
+  text("SHALL WE PLAY A GAME?", width / 2, 210);
+  noGlow();
+
+  // Game list — classic WarGames roster
+  textAlign(LEFT, TOP);
+  textSize(15);
+  fill(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
+  crtGlow(0.25);
+
+  let games = [
+    "> FALKEN'S MAZE",
+    "> BLACK JACK",
+    "> GIN RUMMY",
+    "> HEARTS",
+    "> BRIDGE",
+    "> CHECKERS",
+    "> CHESS",
+    "> POKER",
+    "> FIGHTER COMBAT",
+    "> GUERRILLA ENGAGEMENT",
+    "> DESERT WARFARE",
+    "> AIR-TO-GROUND ACTIONS",
+    "> THEATERWIDE TACTICAL WARFARE",
+    "> GLOBAL THERMONUCLEAR WAR",
+  ];
+
+  let colW = (width - 160) / 2;
+  for (let i = 0; i < games.length; i++) {
+    let col = i < 7 ? 0 : 1;
+    let row = i % 7;
+    let gx = 80 + col * colW;
+    let gy = 260 + row * 22;
+    // highlight the last one
+    if (games[i] === "> GLOBAL THERMONUCLEAR WAR") {
+      let pulse = 150 + 60 * sin(frameCount * 0.12);
+      fill(255, pulse, 60);
+    } else {
+      fill(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
+    }
+    text(games[i], gx, gy);
+  }
+  noGlow();
+  pop();
+
+  drawTerminalFooter("> SELECT A GAME", "A STRANGE GAME. THE ONLY WINNING MOVE IS NOT TO PLAY.");
+}
+
+
+/********************VICTORY SCREEN********************/
+// Appears when the player types DEFCONV.
+function drawVictoryScreen() {
+  // Soft blue background
+  background(2, 8, 18);
+
+  // Calm pulsing blue vignette
+  push();
+  noStroke();
+  let pulse = 0.5 + 0.3 * sin(frameCount * 0.08);
+  let g = drawingContext.createRadialGradient(
+    width / 2, height / 2, 60,
+    width / 2, height / 2, height
+  );
+  g.addColorStop(0, "rgba(80, 160, 230, " + (0.30 * pulse) + ")");
+  g.addColorStop(1, "rgba(0, 10, 30, 0)");
+  drawingContext.fillStyle = g;
+  drawingContext.fillRect(0, 0, width, height);
+  pop();
+
+  drawTerminalFrame();
+
+  // Header — light blue
+  push();
+  noStroke();
+  fill(0, 25, 50);
+  rect(25, 25, width - 50, 50);
+  drawingContext.shadowBlur = 14;
+  drawingContext.shadowColor = "rgba(150, 220, 255, 0.85)";
+  fill(180, 230, 255);
+  textFont(myFont);
+  textSize(22);
+  textAlign(LEFT, CENTER);
+  text("SYSTEM // DISABLED", 40, 50);
+  textAlign(RIGHT, CENTER);
+  textSize(15);
+  text("STATUS: SAFE", width - 40, 50);
+  drawingContext.shadowBlur = 0;
+  stroke(80, 160, 220);
+  strokeWeight(1);
+  line(25, 75, width - 25, 75);
+  pop();
+
+  // Big steady SYSTEM DISABLED title (light cyan, gentle pulse)
+  push();
+  textAlign(CENTER, CENTER);
+  textFont(myFont);
+  let glow = 0.7 + 0.3 * sin(frameCount * 0.06);
+  drawingContext.shadowBlur = 22 * glow;
+  drawingContext.shadowColor = "rgba(150, 220, 255, 0.9)";
+  fill(190, 235, 255);
+  textSize(58);
+  text("SYSTEM DISABLED", width / 2, 160);
+  drawingContext.shadowBlur = 0;
+  pop();
+
+  // Typewriter success message panel
+  push();
+  textFont(myFont);
+  textAlign(LEFT, TOP);
+  let panelX = 80;
+  let panelY = 240;
+  let messagePanelWidth = width - 160;
+  let messagePanelHeight = 280;
+
+  // Panel backing
+  noStroke();
+  fill(4, 18, 36);
+  rect(panelX, panelY, messagePanelWidth, messagePanelHeight, 4);
+  noFill();
+  stroke(80, 170, 230);
+  strokeWeight(1);
+  rect(panelX, panelY, messagePanelWidth, messagePanelHeight, 4);
+
+  let messages = [
+    "> THREAT NEUTRALIZED.",
+    "> WARHEADS RECALLED.",
+    "> ALL SYSTEMS NOMINAL.",
+    "",
+    "> Success"
+  ];
+  let fullText = messages.join("\n");
+  let typeSpeed = 4;
+  let elapsedFrames = (winStartMs !== null)
+    ? Math.floor((millis() - winStartMs) / (1000 / 60))
+    : 0;
+  let target = Math.min(fullText.length, Math.floor(elapsedFrames / typeSpeed));
+  let visible = fullText.substring(0, target);
+
+  drawingContext.shadowBlur = 12;
+  drawingContext.shadowColor = "rgba(150, 220, 255, 0.7)";
+  noStroke();
+  fill(180, 230, 255);
+  textSize(20);
+  text(visible, panelX + 24, panelY + 24);
+
+  if (target >= fullText.length) {
+    let cursor = (frameCount % 60 < 30) ? "_" : " ";
+    textSize(20);
+    text(cursor, panelX + 24, panelY + 24 + (messages.length) * 26);
+  }
+  drawingContext.shadowBlur = 0;
+  pop();
+
+  // Footer
+  drawTerminalFooter("// SYSTEM SHUTDOWN COMPLETE",
+                     "REFRESH PAGE TO PLAY AGAIN");
+}
+
+
+/********************FAILURE SCREEN********************/
+// Appears when the timer runs out.
+function drawFailureScreen() {
+  // Solid black + heavy red wash
+  background(8, 0, 0);
+
+  // Pulsing red vignette
+  push();
+  noStroke();
+  let pulse = 0.7 + 0.3 * sin(frameCount * 0.15);
+  let g = drawingContext.createRadialGradient(
+    width / 2, height / 2, 60,
+    width / 2, height / 2, height
+  );
+  g.addColorStop(0, "rgba(120, 0, 0, " + (0.35 * pulse) + ")");
+  g.addColorStop(1, "rgba(20, 0, 0, 0)");
+  drawingContext.fillStyle = g;
+  drawingContext.fillRect(0, 0, width, height);
+  pop();
+
+  drawTerminalFrame();
+
+  // Header — angry red
+  push();
+  noStroke();
+  fill(40, 0, 0);
+  rect(25, 25, width - 50, 50);
+  drawingContext.shadowBlur = 14;
+  drawingContext.shadowColor = "rgba(255, 60, 60, 0.85)";
+  fill(255, 90, 90);
+  textFont(myFont);
+  textSize(22);
+  textAlign(LEFT, CENTER);
+  text("SYSTEM // ACCESS:DENIED", 40, 50);
+  textAlign(RIGHT, CENTER);
+  textSize(15);
+  text("TIMER: 00:00", width - 40, 50);
+  drawingContext.shadowBlur = 0;
+  stroke(180, 30, 30);
+  strokeWeight(1);
+  line(25, 75, width - 25, 75);
+  pop();
+
+  // Big flickering ACCESS:DENIED
+  push();
+  textAlign(CENTER, CENTER);
+  textFont(myFont);
+  let flicker = (frameCount % 47 < 3) ? 130 : 255;
+  drawingContext.shadowBlur = 22;
+  drawingContext.shadowColor = "rgba(255, 50, 50, 0.95)";
+  fill(255, flicker * 0.4, flicker * 0.4);
+  textSize(58);
+  text("ACCESS:DENIED", width / 2, 160);
+  drawingContext.shadowBlur = 0;
+  pop();
+
+  // Typewriter "> Failure" message — same style as title typing
+  push();
+  textFont(myFont);
+  textAlign(LEFT, TOP);
+  let panelX = 80;
+  let panelY = 240;
+  let messagePanelWidth = width - 160;
+  let messagePanelHeight = 280;
+
+  // Panel backing
+  noStroke();
+  fill(20, 0, 0);
+  rect(panelX, panelY, messagePanelWidth, messagePanelHeight, 4);
+  noFill();
+  stroke(180, 40, 40);
+  strokeWeight(1);
+  rect(panelX, panelY, messagePanelWidth, messagePanelHeight, 4);
+
+  // Type out the failure message at ~6 frames per character
+  let messages = [
+    "> CONNECTION TERMINATED.",
+    "> SESSION EXPIRED.",
+    "> SECURITY OVERRIDE ENGAGED.",
+    "",
+    "> Failure"
+  ];
+  let fullText = messages.join("\n");
+  let typeSpeed = 4; // frames per char
+  let elapsedFrames = (failureStartMs !== null)
+    ? Math.floor((millis() - failureStartMs) / (1000 / 60))
+    : 0;
+  let target = Math.min(fullText.length, Math.floor(elapsedFrames / typeSpeed));
+  let visible = fullText.substring(0, target);
+
+  drawingContext.shadowBlur = 12;
+  drawingContext.shadowColor = "rgba(255, 100, 100, 0.7)";
+  noStroke();
+  fill(255, 130, 130);
+  textSize(20);
+  text(visible, panelX + 24, panelY + 24);
+
+  // Blinking cursor at the end of the typed text
+  if (target < fullText.length) {
+    let cursor = (frameCount % 30 < 15) ? "_" : "";
+    // We can't easily know the (x,y) of the end of multiline text without
+    // measuring; use a simple fixed cursor at the bottom-left of where the
+    // last visible line is, which works because the message ends with "> Failure".
+    // p5's text() with \n handles line breaks for us.
+  } else {
+    // After full message, append a trailing blinking cursor on its own line
+    let cursor = (frameCount % 60 < 30) ? "_" : " ";
+    textSize(20);
+    text(cursor, panelX + 24, panelY + 24 + (messages.length) * 26);
+  }
+  drawingContext.shadowBlur = 0;
+  pop();
+
+  // Footer
+  drawTerminalFooter("// GLOBAL THERMONUCLEAR WAR INITIATED",
+                     "REFRESH PAGE TO RESTART");
+}
+
+
+/********************PIGEON CIPHER********************/
+// Final animated tic-tac-toe readout.
+function drawPigeonCipher() {
+  background(C_BG[0], C_BG[1], C_BG[2]);
+  drawTerminalFrame();
+  drawTerminalHeader("CIPHER OUTPUT // DECODED STREAM",
+                     "FRAME " + (currentIndex + 1) + " / " + pigeonBoards.length);
+
+  // Draw the current board, large and centered, with no outer borders.
+  let currentPigeonBoard = pigeonBoards[currentIndex];
+  if (currentPigeonBoard) {
+    drawPigeonBoard(width / 2, height / 2 - 10, 360, currentPigeonBoard);
+  }
+
+  // progress bar
+  push();
+  let progressBarWidth = 420;
+  let progressBarX = (width - progressBarWidth) / 2;
+  let progressBarY = height - 95;
+  noFill();
+  stroke(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
+  strokeWeight(1);
+  rect(progressBarX, progressBarY, progressBarWidth, 10);
+
+  noStroke();
+  crtGlow(0.6);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  let frameElapsedProgress = (millis() - lastSwitch) / INTERVAL;
+  let decodeProgress = constrain((currentIndex + frameElapsedProgress) / pigeonBoards.length, 0, 1);
+  rect(progressBarX + 1, progressBarY + 1, (progressBarWidth - 2) * decodeProgress, 8);
+  noGlow();
+
+  fill(C_GREEN[0], C_GREEN[1], C_GREEN[2]);
+  textFont(myFont);
+  textSize(14);
+  textAlign(CENTER, CENTER);
+  text("DECODING TRANSMISSION...", width / 2, progressBarY - 14);
+  pop();
+
+  drawTerminalFooter("[ BACK ] RETURN TO TERMINAL",
+                     "STREAM CONTINUES UNTIL RETURN");
+
+  if (millis() - lastSwitch > INTERVAL) {
+    currentIndex++;
+    lastSwitch = millis();
+    if (currentIndex >= pigeonBoards.length) {
+      currentIndex = 0;
+    }
+  }
+}
+
+// Draw a 3x3 tic-tac-toe board centered at (cx, cy) with total size `size`.
+// `board` is { cells: 9-char string, strike: bool }.
+//   cells: 'O' = circle, 'X' = cross, '.' = empty.
+//   strike: when true, draws a horizontal line through the bottom row.
+// Style: black cell backgrounds, phosphor-green internal grid lines and symbols.
+// No outer border lines — only internal dividers.
+function drawPigeonBoard(boardCenterX, boardCenterY, boardSize, boardFrameData) {
+  let boardCells = boardFrameData.cells;
+  let shouldDrawStrikeLine = !!boardFrameData.strike;
+  let boardCellSize = boardSize / 3;
+  let boardLeftX = boardCenterX - boardSize / 2;
+  let boardTopY = boardCenterY - boardSize / 2;
+
+  push();
+  rectMode(CORNER);
+
+  // Cell backgrounds — black squares (so empty cells read as solid black)
+  noStroke();
+  fill(0);
+  for (let rowIndex = 0; rowIndex < 3; rowIndex++) {
+    for (let columnIndex = 0; columnIndex < 3; columnIndex++) {
+      rect(boardLeftX + columnIndex * boardCellSize, boardTopY + rowIndex * boardCellSize, boardCellSize, boardCellSize);
+    }
+  }
+
+  // Internal grid lines (only the 4 dividing lines — no outer border)
+  drawingContext.shadowBlur = 12;
+  drawingContext.shadowColor = "rgba(80, 255, 120, 0.7)";
+  stroke(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
+  strokeWeight(2.4);
+  // 2 vertical dividers
+  line(boardLeftX + boardCellSize,     boardTopY, boardLeftX + boardCellSize,     boardTopY + boardSize);
+  line(boardLeftX + 2 * boardCellSize, boardTopY, boardLeftX + 2 * boardCellSize, boardTopY + boardSize);
+  // 2 horizontal dividers
+  line(boardLeftX, boardTopY + boardCellSize,     boardLeftX + boardSize, boardTopY + boardCellSize);
+  line(boardLeftX, boardTopY + 2 * boardCellSize, boardLeftX + boardSize, boardTopY + 2 * boardCellSize);
+  drawingContext.shadowBlur = 0;
+
+  // Symbols
+  let circleRadius = boardCellSize * 0.28;          // circle radius
+  let xHalfSize = boardCellSize * 0.30;             // X half-extent
+  for (let i = 0; i < 9; i++) {
+    let rowIndex = Math.floor(i / 3);
+    let columnIndex = i % 3;
+    let symbolCenterX = boardLeftX + columnIndex * boardCellSize + boardCellSize / 2;
+    let symbolCenterY = boardTopY + rowIndex * boardCellSize + boardCellSize / 2;
+    let cellSymbol = boardCells.charAt(i);
+
+    if (cellSymbol === "O") {
+      drawingContext.shadowBlur = 14;
+      drawingContext.shadowColor = "rgba(120, 255, 150, 0.9)";
+      noFill();
+      stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+      strokeWeight(3);
+      ellipse(symbolCenterX, symbolCenterY, circleRadius * 2, circleRadius * 2);
+      drawingContext.shadowBlur = 0;
+    } else if (cellSymbol === "X") {
+      drawingContext.shadowBlur = 14;
+      drawingContext.shadowColor = "rgba(120, 255, 150, 0.9)";
+      stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+      strokeWeight(3);
+      line(symbolCenterX - xHalfSize, symbolCenterY - xHalfSize, symbolCenterX + xHalfSize, symbolCenterY + xHalfSize);
+      line(symbolCenterX + xHalfSize, symbolCenterY - xHalfSize, symbolCenterX - xHalfSize, symbolCenterY + xHalfSize);
+      drawingContext.shadowBlur = 0;
+    }
+    // '.' renders as nothing — empty black cell
+  }
+
+  // Strikethrough on the bottom row (used for letter V)
+  if (shouldDrawStrikeLine) {
+    drawingContext.shadowBlur = 16;
+    drawingContext.shadowColor = "rgba(120, 255, 150, 0.95)";
+    stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+    strokeWeight(3.5);
+    let strikeLineY = boardTopY + 2 * boardCellSize + boardCellSize / 2; // middle of bottom row
+    line(boardLeftX + 6, strikeLineY, boardLeftX + boardSize - 6, strikeLineY);
+    drawingContext.shadowBlur = 0;
+  }
+
+  pop();
+}
+
+
+/********************CIRCUITS PUZZLE********************/
+// Toggle grid with a lightbulb panel that brightens as the answer gets closer.
+function drawCircuitsPuzzle() {
+  background(C_BG[0], C_BG[1], C_BG[2]);
+  drawTerminalFrame();
+  drawTerminalHeader("DIAGNOSTIC // CIRCUIT STABILIZER", "");
+  drawDefconReadout(5);
+
+  // Sub-header
+  push();
+  crtGlow(0.4);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textFont(myFont);
+  textAlign(LEFT, TOP);
+  textSize(15);
+  text("> MATCH THE STABLE CONFIGURATION.", 50, 100);
+
+  let activeNodeCount = circuitStates.filter(function (isNodeActive) { return isNodeActive; }).length;
+  fill(C_GREEN[0], C_GREEN[1], C_GREEN[2]);
+  textSize(13);
+  text("NODES ACTIVE: " + activeNodeCount + " / 9", 50, 124);
+
+  fill(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  textAlign(RIGHT, TOP);
+  text("CLICK A NODE TO TOGGLE", width - 50, 124);
+  noGlow();
+  pop();
+
+  // Main puzzle elements
+  drawCircuitGrid();
+  drawAnswerLamp();
+
+  drawTerminalFooter("[ BACK ] RETURN TO TERMINAL",
+                     "SUBROUTINE 0x3C • CHECKSUM ACTIVE");
+}
+
+
+// ---- The 3x3 toggle grid with phosphor-green wires ----
+//      Layout uses constants below; click handler must mirror them.
+function drawCircuitGrid() {
+  let circuitGridStartX = 80;
+  let circuitGridStartY = 175;
+  let circuitGridCellSpacing = 100;
+  let circuitNodeSize = 46;
+
+  push();
+  rectMode(CORNER);
+
+  // WIRES — drawn between every adjacent pair of nodes.
+  // A wire glows bright when BOTH endpoints are ON; otherwise it sits dim.
+  for (let rowIndex = 0; rowIndex < 3; rowIndex++) {
+    for (let columnIndex = 0; columnIndex < 3; columnIndex++) {
+      let nodeIndex = rowIndex * 3 + columnIndex;
+      let wireStartX = circuitGridStartX + columnIndex * circuitGridCellSpacing + circuitNodeSize / 2;
+      let wireStartY = circuitGridStartY + rowIndex * circuitGridCellSpacing + circuitNodeSize / 2;
+
+      if (columnIndex < 2) {
+        let rightNeighborIndex = nodeIndex + 1;
+        let isWireActive = circuitStates[nodeIndex] && circuitStates[rightNeighborIndex];
+        let wireEndX = circuitGridStartX + (columnIndex + 1) * circuitGridCellSpacing + circuitNodeSize / 2;
+        if (isWireActive) {
+          crtGlow(0.9);
+          stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+          strokeWeight(3);
+        } else {
+          noGlow();
+          stroke(0, 90, 30);
+          strokeWeight(2);
+        }
+        line(wireStartX, wireStartY, wireEndX, wireStartY);
+      }
+
+      if (rowIndex < 2) {
+        let lowerNeighborIndex = nodeIndex + 3;
+        let isWireActive = circuitStates[nodeIndex] && circuitStates[lowerNeighborIndex];
+        let wireEndY = circuitGridStartY + (rowIndex + 1) * circuitGridCellSpacing + circuitNodeSize / 2;
+        if (isWireActive) {
+          crtGlow(0.9);
+          stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+          strokeWeight(3);
+        } else {
+          noGlow();
+          stroke(0, 90, 30);
+          strokeWeight(2);
+        }
+        line(wireStartX, wireStartY, wireStartX, wireEndY);
+      }
+    }
+  }
+  noGlow();
+
+  // NODES
+  textFont(myFont);
+  textAlign(CENTER, CENTER);
+
+  for (let i = 0; i < 9; i++) {
+    let rowIndex = floor(i / 3);
+    let columnIndex = i % 3;
+    let nodeLeftX = circuitGridStartX + columnIndex * circuitGridCellSpacing;
+    let nodeTopY = circuitGridStartY + rowIndex * circuitGridCellSpacing;
+    let isNodeHovered = mouseX >= nodeLeftX && mouseX <= nodeLeftX + circuitNodeSize &&
+                mouseY >= nodeTopY && mouseY <= nodeTopY + circuitNodeSize;
+
+    if (circuitStates[i]) {
+      // Active node — pulsing green fill
+      let nodeGlowPulse = 190 + 50 * sin(frameCount * 0.15 + i);
+      crtGlow(1);
+      fill(60, nodeGlowPulse, 110);
+      stroke(180, 255, 200);
+      strokeWeight(2);
+    } else if (isNodeHovered) {
+      crtGlow(0.6);
+      fill(14, 32, 20);
+      stroke(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+      strokeWeight(1.8);
+    } else {
+      crtGlow(0.25);
+      fill(10, 22, 14);
+      stroke(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
+      strokeWeight(1.5);
+    }
+    rect(nodeLeftX, nodeTopY, circuitNodeSize, circuitNodeSize, 8);
+    noGlow();
+
+    noStroke();
+    if (circuitStates[i]) {
+      fill(C_BG[0], C_BG[1], C_BG[2]);
+      textSize(15);
+      text("ON", nodeLeftX + circuitNodeSize / 2, nodeTopY + circuitNodeSize / 2);
+    } else {
+      fill(isNodeHovered ? C_GREEN_HI[0] : C_GREEN[0],
+           isNodeHovered ? C_GREEN_HI[1] : C_GREEN[1],
+           isNodeHovered ? C_GREEN_HI[2] : C_GREEN[2]);
+      textSize(13);
+      text("OFF", nodeLeftX + circuitNodeSize / 2, nodeTopY + circuitNodeSize / 2);
+    }
+  }
+
+  textAlign(LEFT, TOP);
+  pop();
+}
+
+// ---- The lightbulb + hidden answer panel ----
+//      Brightness scales with how many switches the player has correctly
+//      turned ON (out of the 5 that should be ON). The TICTACTOE answer
+//      stays hidden until the puzzle is fully solved (all 9 match).
+function drawAnswerLamp() {
+  // Count switches that are ON AND should be ON
+  let correctlyActiveNodeCount = 0;
+  for (let i = 0; i < 9; i++) {
+    if (circuitStates[i] && circuitSolution[i]) correctlyActiveNodeCount++;
+  }
+  let totalCorrectNodeCount = circuitSolution.filter(function (isNodePartOfAnswer) { return isNodePartOfAnswer; }).length;
+  let answerBrightness = totalCorrectNodeCount > 0 ? (correctlyActiveNodeCount / totalCorrectNodeCount) : 0;
+
+  // Panel rectangle (right side of the screen)
+  let panelX = 410;
+  let panelY = 165;
+  let panelWidth = 250;
+  let panelHeight = 295;
+
+  push();
+  rectMode(CORNER);
+
+  // Panel backing
+  noStroke();
+  fill(2, 12, 6);
+  rect(panelX, panelY, panelWidth, panelHeight, 3);
+
+  // Panel border
+  crtGlow(0.3);
+  noFill();
+  stroke(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  strokeWeight(1);
+  rect(panelX, panelY, panelWidth, panelHeight, 3);
+  noGlow();
+
+  // Header
+  noStroke();
+  crtGlow(0.4);
+  fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  textFont(myFont);
+  textAlign(CENTER, TOP);
+  textSize(14);
+  text("MODULE OUTPUT", panelX + panelWidth / 2, panelY + 10);
+  noGlow();
+
+  // Header underline
+  stroke(C_GREEN_FAINT[0], C_GREEN_FAINT[1], C_GREEN_FAINT[2]);
+  strokeWeight(1);
+  line(panelX + 20, panelY + 32, panelX + panelWidth - 20, panelY + 32);
+
+  // ---- BULB GEOMETRY ----
+  let bulbCenterX = panelX + panelWidth / 2;
+  let bulbCenterY = panelY + 92;
+  let bulbRadius = 22;
+
+  // Hanging cord from top of panel down to the bulb cap
+  noFill();
+  stroke(60, 80, 60);
+  strokeWeight(1.4);
+  line(bulbCenterX, panelY + 40, bulbCenterX, bulbCenterY - bulbRadius - 2);
+
+  // Outer halo behind bulb (radial gradient) — scales with brightness
+  if (answerBrightness > 0) {
+    let bulbGlowRadius = 50 + 90 * answerBrightness;
+    let bulbGlowAlpha = 0.10 + 0.50 * answerBrightness;
+    let bulbGlowGradient = drawingContext.createRadialGradient(
+      bulbCenterX, bulbCenterY, 5,
+      bulbCenterX, bulbCenterY, bulbGlowRadius
+    );
+    bulbGlowGradient.addColorStop(0, "rgba(120, 255, 150, " + bulbGlowAlpha + ")");
+    bulbGlowGradient.addColorStop(1, "rgba(120, 255, 150, 0)");
+    drawingContext.fillStyle = bulbGlowGradient;
+    drawingContext.fillRect(panelX + 1, panelY + 32,
+                            panelWidth - 2, panelHeight - 33);
+  }
+
+  // Bulb cap (metallic part at top)
+  noStroke();
+  fill(60, 60, 60);
+  rect(bulbCenterX - 8, bulbCenterY - bulbRadius - 4, 16, 6, 1);
+  fill(80, 80, 80);
+  rect(bulbCenterX - 5, bulbCenterY - bulbRadius - 6, 10, 2);
+
+  // Bulb glass — color lerps from dim outline to bright phosphor with brightness
+  let bulbRedValue = lerp(20, 200, answerBrightness);
+  let bulbGreenValue = lerp(40, 255, answerBrightness);
+  let bulbBlueValue = lerp(20, 180, answerBrightness);
+
+  if (answerBrightness > 0.05) {
+    drawingContext.shadowBlur = 18 * answerBrightness;
+    drawingContext.shadowColor = "rgba(150, 255, 170, " + answerBrightness + ")";
+  }
+  fill(bulbRedValue, bulbGreenValue, bulbBlueValue);
+  stroke(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
+  strokeWeight(1.2);
+  ellipse(bulbCenterX, bulbCenterY, bulbRadius * 1.7, bulbRadius * 1.95);
+  drawingContext.shadowBlur = 0;
+
+  // Filament — small zig-zag inside the bulb
+  noFill();
+  if (answerBrightness > 0.1) {
+    stroke(255, 240, 180);
+    strokeWeight(1.4);
+    drawingContext.shadowBlur = 10 * answerBrightness;
+    drawingContext.shadowColor = "rgba(255, 240, 180, " + answerBrightness + ")";
+  } else {
+    stroke(40, 70, 40);
+    strokeWeight(1);
+  }
+  let filamentStartY = bulbCenterY - 1;
+  let filamentStartX = bulbCenterX - 7;
+  beginShape();
+  vertex(filamentStartX,      filamentStartY + 4);
+  vertex(filamentStartX + 3,  filamentStartY - 3);
+  vertex(filamentStartX + 7,  filamentStartY + 3);
+  vertex(filamentStartX + 11, filamentStartY - 3);
+  vertex(filamentStartX + 14, filamentStartY + 4);
+  endShape();
+  drawingContext.shadowBlur = 0;
+
+  // ---- LIGHT POOL on the panel "wall" below the bulb ----
+  if (answerBrightness > 0) {
+    let lightPoolCenterY = panelY + 215;
+    let lightPoolRadius = 60 + 90 * answerBrightness;
+    let lightPoolAlpha = 0.05 + 0.30 * answerBrightness;
+    let lightPoolGradient = drawingContext.createRadialGradient(
+      bulbCenterX, lightPoolCenterY, 5,
+      bulbCenterX, lightPoolCenterY, lightPoolRadius
+    );
+    lightPoolGradient.addColorStop(0, "rgba(120, 255, 150, " + lightPoolAlpha + ")");
+    lightPoolGradient.addColorStop(1, "rgba(120, 255, 150, 0)");
+    drawingContext.fillStyle = lightPoolGradient;
+    drawingContext.fillRect(panelX + 4, panelY + 140,
+                            panelWidth - 8, panelHeight - 144);
+  }
+
+  // ---- ANSWER TEXT — hidden until puzzle is fully solved ----
+  textFont(myFont);
+  textAlign(CENTER, CENTER);
+  let answerTextY = panelY + 215;
+
+  if (circuitSolved) {
+    let answerGlowPulse = 0.7 + 0.3 * sin(frameCount * 0.15);
+    drawingContext.shadowBlur = 18 * answerGlowPulse;
+    drawingContext.shadowColor = "rgba(120, 255, 150, 0.95)";
+    noStroke();
+    fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+    textSize(26);
+    text("TICTACTOE", bulbCenterX, answerTextY);
+    drawingContext.shadowBlur = 0;
+
+    fill(C_GREEN[0], C_GREEN[1], C_GREEN[2]);
+    textSize(11);
+    text("// OUTPUT STABLE", bulbCenterX, answerTextY + 26);
+  } else {
+    // Placeholder — same character footprint, dim and unreadable
+    noStroke();
+    fill(C_GREEN_FAINT[0], C_GREEN_FAINT[1], C_GREEN_FAINT[2]);
+    textSize(26);
+    text("? ? ? ? ? ? ? ? ?", bulbCenterX, answerTextY);
+  }
+
+  // ---- Stability meter at the bottom of the panel ----
+  let stabilityMeterY = panelY + panelHeight - 26;
+  let stabilityMeterX = panelX + 20;
+  let stabilityMeterWidth = panelWidth - 40;
+
+  noFill();
+  stroke(C_GREEN_FAINT[0], C_GREEN_FAINT[1], C_GREEN_FAINT[2]);
+  strokeWeight(1);
+  rect(stabilityMeterX, stabilityMeterY, stabilityMeterWidth, 6);
+
+  noStroke();
+  if (circuitSolved) {
+    fill(C_GREEN_HI[0], C_GREEN_HI[1], C_GREEN_HI[2]);
+  } else {
+    fill(C_GREEN[0], C_GREEN[1], C_GREEN[2]);
+  }
+  rect(stabilityMeterX + 1, stabilityMeterY + 1, (stabilityMeterWidth - 2) * answerBrightness, 4);
+
+  fill(C_GREEN_DIM[0], C_GREEN_DIM[1], C_GREEN_DIM[2]);
+  textFont(myFont);
+  textAlign(LEFT, BOTTOM);
+  textSize(10);
+  text("STABILITY", stabilityMeterX, stabilityMeterY - 2);
+  textAlign(RIGHT, BOTTOM);
+  text(Math.round(answerBrightness * 100) + "%", stabilityMeterX + stabilityMeterWidth, stabilityMeterY - 2);
+
+  pop();
+}
+
+
+// Zoomed minesweeper board drawn directly on the main canvas (not a buffer).
+function drawZoomedPuzzleBoard(boardLeftX, boardTopY, boardSize) {
+  let boardCellSize = boardSize / 3;
+  let boardCellContents = [
+    "flag",  "empty", "flag",
+    "flag",  "5",     "flag",
+    "flag",  "3",     "empty"
+  ];
+
+  push();
+  // Backing
+  noStroke();
+  fill(252, 248, 232);
+  rect(boardLeftX, boardTopY, boardSize, boardSize, 2);
+
+  // Grid lines
+  stroke(40);
+  strokeWeight(1.2);
+  for (let i = 0; i <= 3; i++) {
+    line(boardLeftX + i * boardCellSize, boardTopY,            boardLeftX + i * boardCellSize, boardTopY + boardSize);
+    line(boardLeftX,                      boardTopY + i * boardCellSize, boardLeftX + boardSize, boardTopY + i * boardCellSize);
+  }
+
+  for (let i = 0; i < 9; i++) {
+    let rowIndex = Math.floor(i / 3);
+    let columnIndex = i % 3;
+    let cellCenterX = boardLeftX + columnIndex * boardCellSize + boardCellSize / 2;
+    let cellCenterY = boardTopY + rowIndex * boardCellSize + boardCellSize / 2;
+    let cellContent = boardCellContents[i];
+
+    if (cellContent === "flag") {
+      drawZoomedFlag(cellCenterX, cellCenterY, boardCellSize * 0.7);
+    } else if (cellContent === "empty") {
+      // intentionally blank
+    } else {
+      noStroke();
+      fill(20);
+      textFont("Arial");
+      textStyle(BOLD);
+      textSize(34);
+      textAlign(CENTER, CENTER);
+      text(cellContent, cellCenterX, cellCenterY);
+    }
+  }
+  textStyle(NORMAL);
+  pop();
+}
+
+function drawZoomedFlag(flagCenterX, flagCenterY, flagSize) {
+  push();
+  noStroke();
+
+  // pole
+  let flagPoleHeight = flagSize * 0.55;
+  fill(0);
+  rect(flagCenterX - 1.5, flagCenterY - flagPoleHeight / 2, 3, flagPoleHeight);
+  // base
+  rect(flagCenterX - flagSize * 0.22, flagCenterY + flagPoleHeight / 2 - 4, flagSize * 0.44, 4);
+  rect(flagCenterX - flagSize * 0.18, flagCenterY + flagPoleHeight / 2,     flagSize * 0.36, 2);
+
+  // red flag
+  fill(220, 30, 30);
+  let flagTopY = flagCenterY - flagPoleHeight / 2;
+  beginShape();
+  vertex(flagCenterX - 1.5, flagTopY);
+  vertex(flagCenterX - flagSize * 0.32, flagTopY + flagSize * 0.18);
+  vertex(flagCenterX - 1.5, flagTopY + flagSize * 0.36);
+  endShape(CLOSE);
+  pop();
+}
+
+
+
+
+/********************USER INPUT********************/
+// Keyboard and mouse flow for the whole game.
+function keyTyped() {
+  if (winMode || failureMode) return;
+  if (state === 0) {
+    if (writing) {
+      if (key.length === 1) {
+        textInput += key.toUpperCase();
+      }
+    }
+  }
+}
+
+function mouseClicked() {
+  if (winMode || failureMode) return;
+  if (state === 0) {
+    // Click anywhere on the monitor screen (or its bezel) to begin
+    let monitorCenterX = width / 2;
+    let monitorCenterY = height / 2;
+    let monitorScreenWidth = 180;
+    let monitorScreenHeight = 180;
+    if (mouseX >= monitorCenterX - monitorScreenWidth / 2 - 18 &&
+        mouseX <= monitorCenterX + monitorScreenWidth / 2 + 18 &&
+        mouseY >= monitorCenterY - monitorScreenHeight / 2 - 14 &&
+        mouseY <= monitorCenterY + monitorScreenHeight / 2 + 24) {
+      clicked = true;
+      bootStartFrame = frameCount;
+    }
+    return;
+  }
+
+  if (state === 1) {
+    if (screen === "challenge one") {
+      if (footerExitClicked()) {
+        screen = "lobby";
+        message = "";
+      }
+    } else if (screen === "finalpuzzle") {
+      if (footerBackClicked()) {
+        leaveFinalPuzzle();
+      }
+    } else if (screen === "lobby") {
+      // Route to whichever app tile was clicked
+      let opened = appTiles.find(function (a) { return a.hovered; });
+      if (opened) {
+        if (opened.id === "terminal") {
+          screen = "challenge one";
+        } else if (opened.id === "newspaper") {
+          screen = "newspaper";
+          zoomedSection = null;
+        } else if (opened.id === "cipher") {
+          screen = "cipher";
+        }
+      }
+    } else if (screen === "newspaper") {
+      if (zoomedSection !== null) {
+        // Inside zoom view — any click returns to the paper
+        zoomedSection = null;
+      } else if (hoveredNewspaperSection !== null) {
+        // Click on a section → zoom in
+        zoomedSection = hoveredNewspaperSection;
+      } else {
+        // Click outside any section → back to lobby
+        screen = "lobby";
+      }
+    } else if (screen === "cipher") {
+      screen = "lobby";
+    } else if (screen === "success") {
+      // allow click to go back to lobby from success too
+      // (optional — doesn't break anything if you prefer to stay)
+      // screen = "lobby";
+    } else if (screen === "circuits") {
+      handleCircuitClicks();
+    }
+  }
+}
+
+function keyPressed() {
+  if (winMode || failureMode) return;
+  if (state === 0) {
+    if (keyCode === BACKSPACE) {
+      textInput = textInput.substring(0, textInput.length - 1);
+    }
+    if (keyCode === ENTER) {
+      if (textInput === "YES") {
+        state = 1;
+        timerStartMs = millis();   // begin 15-min countdown
+      } else if (textInput === "NO") {
+        // Reset back to the un-zoomed desk view
+        clicked = false;
+        scaleMult = 1;
+        loading = true;
+        writing = false;
+        index = 0;
+        displayText = "";
+        textInput = "";
+        dots = 1;
+      }
+    }
+  } else if (state === 1) {
+    if (screen !== "challenge one") return;
+
+    if (keyCode === BACKSPACE) {
+      typedText = typedText.substring(0, typedText.length - 1);
+    } else if (keyCode === ENTER || keyCode === RETURN) {
+      if (!usernamePromptDismissed) {
+        if (typedText === "JOSHUA FALKEN") {
+          usernamePromptDismissed = true;
+          message = "look next to the ReadMe.TXT";
+        } else {
+          message = "ACCESS DENIED";
+        }
+        typedText = "";
+      } else if (typedText === correctPassword.toUpperCase()) {
+        message = "ACCESS GRANTED";
+        screen = "success";
+      } else if (typedText === "CIRCUITS") {
+        typedText = "";
+        message = "";
+        circuitMessage = "";
+        screen = "circuits";
+      } else if (typedText === "TICTACTOE") {
+        currentIndex = 0;
+        lastSwitch = millis();
+        typedText = "";
+        screen = "finalpuzzle";
+      } else if (typedText === "DEFCONV") {
+        winMode = true;
+        winStartMs = millis();
+        typedText = "";
+      } else {
+        message = "ACCESS DENIED";
+        typedText = "";
+      }
+    } else if (key.length === 1) {
+      typedText += key.toUpperCase();
+    }
+  }
+}
+
+
+/********************CIRCUITS INPUT********************/
+// Click handling and answer checking for the circuit puzzle.
+function handleCircuitClicks() {
+  let backRect = getFooterLabelRect("[ BACK ] RETURN TO TERMINAL");
+  if (mouseX >= backRect.x && mouseX <= backRect.x + backRect.w &&
+      mouseY >= backRect.y && mouseY <= backRect.y + backRect.h) {
+    screen = "challenge one";
+    circuitMessage = "";
+    return;
+  }
+
+
+  let startX = 80;
+  let startY = 175;
+  let cellSize = 100;
+  let nodeSize = 46;
+
+  for (let i = 0; i < 9; i++) {
+    let r = floor(i / 3);
+    let c = i % 3;
+    let x = startX + c * cellSize;
+    let y = startY + r * cellSize;
+    if (mouseX >= x && mouseX <= x + nodeSize &&
+        mouseY >= y && mouseY <= y + nodeSize) {
+      toggleCircuit(i);
+      checkCircuitSolution();
+      return;
+    }
+  }
+}
+
+function toggleCircuit(i) {
+  circuitStates[i] = !circuitStates[i];
+}
+
+function checkCircuitSolution() {
+  for (let i = 0; i < 9; i++) {
+    if (circuitStates[i] !== circuitSolution[i]) {
+      circuitMessage = "";
+      circuitSolved = false;
+      return;
+    }
+  }
+  circuitSolved = true;
+  circuitMessage = "STABLE OUTPUT: TICTACTOE";
+}
+
+
+
+
+/********************NEWSPAPER BUFFER********************/
+// Builds the offscreen newspaper art and puzzle board.
+function buildNewspaper(g) {
+  g.background(255);
+
+  g.fill(246, 242, 232);
+  g.stroke(50);
+  g.strokeWeight(1.2);
+  g.rect(10, 10, 480, 580);
+
+  addPaperTexture(g);
+
+  g.fill(20);
+  g.noStroke();
+  g.textAlign(CENTER, TOP);
+
+  g.textSize(10);
+  g.textStyle(NORMAL);
+  g.text("NEW YORK", 250, 18);
+
+  g.textSize(30);
+  g.textStyle(BOLD);
+  g.text("Herald Tribune", 250, 30);
+
+  g.textSize(10);
+  g.textStyle(BOLD);
+  g.text("LATE CITY", 440, 28);
+  g.text("EDITION", 440, 40);
+
+  g.stroke(30);
+  g.strokeWeight(1);
+  g.line(20, 66, 470, 66);
+  g.line(20, 84, 470, 84);
+
+  g.noStroke();
+  g.fill(20);
+  g.textStyle(NORMAL);
+  g.textSize(7);
+
+  g.textAlign(LEFT, TOP);
+  g.text("Vol. LXXVII", 20, 71);
+  g.textAlign(CENTER, TOP);
+  g.text("SUNDAY, MAY 22, 1927", 250, 71);
+  g.textAlign(RIGHT, TOP);
+  g.text("PRICE TWO CENTS", 470, 71);
+
+  g.fill(15);
+  g.textAlign(CENTER, TOP);
+  g.textStyle(BOLD);
+  g.textSize(24);
+  g.text("EXTRA EXTRA!", 250, 98);
+
+  g.textStyle(ITALIC);
+  g.textSize(9);
+  g.text("Speculation on Human Nature", 250, 128);
+
+  // Byline (backwards — Challenge 1 clue)
+  g.textStyle(BOLD);
+  g.textSize(13);
+  g.fill(20);
+  g.text("ROHTUA: NEKLAF AUHSOJ", 250, 138);
+
+  g.stroke(60);
+  g.strokeWeight(0.6);
+  g.line(20, 152, 470, 152);
+
+  const topSectionY = 162;
+  const middleDividerY = 378;
+  const bottomSectionY = 572;
+
+  const leftColumnX = 20;      const leftColumnWidth = 95;
+  const leftMiddleColumnX = 122; const leftMiddleColumnWidth = 88;
+  const centerColumnX = 217;   const centerColumnWidth = 110;
+  const rightColumnX = 334;    const rightColumnWidth = 136;
+
+  const articleHeaderY = topSectionY + 2;
+  const articleBodyY   = topSectionY + 28;
+
+  g.stroke(60);
+  g.strokeWeight(0.8);
+  g.line(118, topSectionY, 118, middleDividerY - 3);
+  g.line(213, topSectionY, 213, middleDividerY - 3);
+  g.line(330, topSectionY, 330, middleDividerY - 3);
+
+  g.noStroke();
+  g.fill(20);
+  g.textAlign(LEFT, TOP);
+  g.textStyle(BOLD);
+  g.textSize(8.5);
+  g.text("Section 1", leftColumnX, articleHeaderY);
+
+  g.textStyle(NORMAL);
+  g.textSize(6.5);
+  g.text(
+    "Today generally fair.\nCooler by evening.\nWinds shifting north.\n\nMorning bulletins indicate\ncontinued attention from\ncity offices after clerks\nreported coded markings\nfound among papers and\ndesk materials.\n\nWitnesses described a\nseries of notes arranged\nin a deliberate order,\nsuggesting the message\nwas meant to be solved\nrather than merely read.",
+    leftColumnX, articleBodyY, leftColumnWidth, middleDividerY - articleBodyY - 8
+  );
+
+  g.fill(20);
+  g.textStyle(BOLD);
+  g.textSize(8.5);
+  g.text("Officials\nReview Notes", leftMiddleColumnX, articleHeaderY, leftMiddleColumnWidth, 24);
+
+  g.textStyle(NORMAL);
+  g.textSize(6.5);
+  g.text(
+    "Messengers and clerks say\nseveral papers appeared to\nrefer to a defense term,\nthough one final character\nremained uncertain.\n\nThe arrangement of the\nmessage led some readers\nto suspect a childlike or\nsymbol-based cipher.",
+    leftMiddleColumnX, articleBodyY, leftMiddleColumnWidth, middleDividerY - articleBodyY - 8
+  );
+
+  g.fill(20);
+  g.textStyle(BOLD);
+  g.textSize(8.5);
+  g.textAlign(CENTER, TOP);
+  g.text("Daily Puzzle", centerColumnX + centerColumnWidth / 2, articleHeaderY);
+
+  // Minesweeper-style board (3×3) in the center column
+  drawNewspaperPuzzleBoard(g, centerColumnX, articleBodyY, centerColumnWidth);
+
+  g.textAlign(LEFT, TOP);
+  g.fill(30);
+  g.textStyle(NORMAL);
+  g.textSize(6.5);
+  g.text(
+    "Today's challenge. Solve at home — answers in tomorrow's edition.",
+    centerColumnX + 5, articleBodyY + 148, centerColumnWidth - 10, 30
+  );
+
+  g.fill(20);
+  g.textAlign(LEFT, TOP);
+  g.textStyle(BOLD);
+  g.textSize(10);
+  g.text("Riddle of the Day", rightColumnX, articleHeaderY, rightColumnWidth, 24);
+
+  g.textStyle(NORMAL);
+  g.textSize(9);
+  g.text(
+    "I hide in plain sight,\nbut forward I mislead.\nMy truth only shows when\nyou change how you read.\n\nThe end is the start,\nthe start is the end —\nshift your direction,\nand the message will bend.",
+    rightColumnX, articleBodyY + 14, rightColumnWidth, middleDividerY - articleBodyY - 8
+  );
+
+  g.stroke(60);
+  g.strokeWeight(0.9);
+  g.line(20, middleDividerY, 470, middleDividerY);
+
+  const lowerSectionHeaderY = middleDividerY + 14;
+  const lowerSectionBodyY   = middleDividerY + 36;
+  const lowerSectionDividerX = 245;
+
+  g.stroke(60);
+  g.strokeWeight(0.8);
+  g.line(lowerSectionDividerX, middleDividerY + 8, lowerSectionDividerX, bottomSectionY);
+
+  g.noStroke();
+  g.fill(20);
+  g.textAlign(LEFT, TOP);
+  g.textStyle(BOLD);
+  g.textSize(11);
+  g.text("Public Notice", 20, lowerSectionHeaderY);
+
+  g.textStyle(NORMAL);
+  g.textSize(6.8);
+  g.text(
+    "Records indicate a symbol-based cipher was used in several of the documents. Investigators believe the marks translate directly into letters when read in order.\n\nABCDEFGHIJKLMNOPQRSTUVWXYZ \n\nZYXWVUTSRQPONMLKJIHGFEDCBA",
+    20, lowerSectionBodyY, lowerSectionDividerX - 30, bottomSectionY - lowerSectionBodyY
+  );
+
+  g.fill(20);
+  g.textStyle(BOLD);
+  g.textSize(11);
+  g.text("Editorial", lowerSectionDividerX + 10, lowerSectionHeaderY);
+
+  g.textStyle(NORMAL);
+  g.textSize(6.8);
+  g.text(
+    "Mankind's greatest asset has always been their opposable thumbs and their audacity to scrawl over anything and everything. As cavemen, they would record stories and information on cave walls. This physical ability to record was to important to them, that even as they evolved and grew more intelligent, they simply found ways to bring the cave walls with them.",
+    lowerSectionDividerX + 10, lowerSectionBodyY, 470 - (lowerSectionDividerX + 10), bottomSectionY - lowerSectionBodyY
+  );
+}
+
+// Draw a 3×3 minesweeper-style board into the newspaper graphics buffer.
+// Lays out cells: flag / "Empty Square" / flag,
+//                 flag / 5             / flag,
+//                 flag / 3             / "Empty Square"
+function drawNewspaperPuzzleBoard(g, columnStartX, columnBodyY, columnWidth) {
+  let boardCellWidth = (columnWidth - 14) / 3;        // 3 columns within the column inset
+  let boardCellHeight = 36;
+  let puzzleGridX = columnStartX + 7;
+  let puzzleGridY = columnBodyY + 4;
+
+  let puzzleCellContents = [
+    "flag",  "empty", "flag",
+    "flag",  "5",     "flag",
+    "flag",  "3",     "empty"
+  ];
+
+  // light backing
+  g.noStroke();
+  g.fill(252, 248, 232);
+  g.rect(puzzleGridX, puzzleGridY, boardCellWidth * 3, boardCellHeight * 3, 1);
+
+  // grid lines
+  g.stroke(40);
+  g.strokeWeight(0.6);
+  for (let i = 0; i <= 3; i++) {
+    g.line(puzzleGridX + i * boardCellWidth, puzzleGridY,
+           puzzleGridX + i * boardCellWidth, puzzleGridY + boardCellHeight * 3);
+    g.line(puzzleGridX,                   puzzleGridY + i * boardCellHeight,
+           puzzleGridX + boardCellWidth * 3, puzzleGridY + i * boardCellHeight);
+  }
+
+  // draw each cell
+  for (let i = 0; i < 9; i++) {
+    let rowIndex = Math.floor(i / 3);
+    let columnIndex = i % 3;
+    let cellLeftX = puzzleGridX + columnIndex * boardCellWidth;
+    let cellTopY = puzzleGridY + rowIndex * boardCellHeight;
+    let cellContent = puzzleCellContents[i];
+
+    if (cellContent === "flag") {
+      drawMinesweeperFlag(g, cellLeftX + boardCellWidth / 2, cellTopY + boardCellHeight / 2);
+    } else if (cellContent === "empty") {
+      // intentionally blank
+    } else {
+      // a number ("3" or "5")
+      g.noStroke();
+      g.fill(20);
+      g.textFont("Arial");
+      g.textStyle(BOLD);
+      g.textSize(11);
+      g.textAlign(CENTER, CENTER);
+      g.text(cellContent, cellLeftX + boardCellWidth / 2, cellTopY + boardCellHeight / 2);
+    }
+  }
+  g.textStyle(NORMAL);
+}
+
+// A small minesweeper flag: red flag on a black pole (no tile background).
+function drawMinesweeperFlag(g, flagCenterX, flagCenterY) {
+  // pole
+  g.noStroke();
+  g.fill(0);
+  g.rect(flagCenterX - 1, flagCenterY - 6, 2, 11);
+  // base
+  g.rect(flagCenterX - 5, flagCenterY + 4, 10, 2);
+  g.rect(flagCenterX - 4, flagCenterY + 6, 8, 1);
+
+  // red flag
+  g.fill(220, 30, 30);
+  g.beginShape();
+  g.vertex(flagCenterX - 1, flagCenterY - 7);
+  g.vertex(flagCenterX - 8, flagCenterY - 3);
+  g.vertex(flagCenterX - 1, flagCenterY + 1);
+  g.endShape(CLOSE);
+}
+
+
+function addPaperTexture(g) {
+  for (let i = 0; i < 1400; i++) {
+    let speckleX = random(10, 490);
+    let speckleY = random(10, 590);
+    g.noStroke();
+    g.fill(150, 130, 100, 10);
+    g.ellipse(speckleX, speckleY, random(1, 2.2), random(1, 2.2));
+  }
+  for (let i = 0; i < 70; i++) {
+    let x1 = random(20, 470);
+    let y1 = random(20, 570);
+    let x2 = x1 + random(-10, 10);
+    let y2 = y1 + random(-10, 10);
+    g.stroke(130, 110, 85, 18);
+    g.strokeWeight(0.6);
+    g.line(x1, y1, x2, y2);
+  }
+}
