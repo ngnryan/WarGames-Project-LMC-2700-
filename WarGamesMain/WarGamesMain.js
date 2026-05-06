@@ -23,7 +23,8 @@ let usernamePromptDismissed = false;
 let newspaperBuffer = null;
 let cipherNoteBuffer = null;
 
-// ===== Game timer (15 min countdown linked to ACCESS:DENIED reveal) =====
+/**************GAME TIMER*******************/
+// 15 min countdown tied to the ACCESS:DENIED reveal.
 const TIMER_DURATION_MS = 45 * 60 * 1000; // 15 minutes
 const TIMER_TARGET = "ACCESS:DENIED";     // 13 chars; one revealed per ~1.15 min
 let timerStartMs = null;                  // set when player enters lobby (state 1)
@@ -31,7 +32,8 @@ let failureMode = false;                  // true once timer hits 0
 let failureStartMs = null;                // when failureMode flipped
 let failureTypedIndex = 0;                // typewriter progress for "> Failure"
 
-// ===== Win state (typing DEFCONV) =====
+/**************WIN STATE*******************/
+// Tracks the real ending once the player types DEFCONV.
 let winMode = false;
 let winStartMs = null;
 
@@ -185,9 +187,8 @@ let appTiles = [
 let miniTermRect = { x: 145, y: 60, w: 525, h: 540 };
 let miniTermHovered = false;
 
-// ============================================================
-//  THEME  —  phosphor-green CRT palette
-// ============================================================
+/********************THEME********************/
+// Phosphor-green CRT palette.
 const C_BG          = [4, 12, 6];
 const C_BG_PANEL    = [8, 22, 14];
 const C_GREEN_HI    = [130, 255, 160];
@@ -266,9 +267,8 @@ function draw() {
 }
 
 
-// ============================================================
-//  CRT OVERLAY — scanlines + vignette, applied over everything
-// ============================================================
+/********************CRT OVERLAY********************/
+// Scanlines and vignette laid over the whole screen.
 function drawCRTOverlay() {
   push();
   resetMatrix();
@@ -303,9 +303,8 @@ function drawCRTOverlay() {
 }
 
 
-// ============================================================
-//  TITLE SCREEN — desk + monitor drawn from scratch, zooms in on click
-// ============================================================
+/********************TITLE SCREEN********************/
+// Desk and monitor are drawn from scratch, then zoom in on click.
 function titleScreen() {
   push();
 
@@ -724,9 +723,8 @@ function drawTitleClickPrompt(promptCenterX, promptCenterY) {
 }
 
 
-// ============================================================
-//  LOBBY / ROUTING
-// ============================================================
+/********************LOBBY ROUTING********************/
+// Chooses which lobby app or ending screen should be shown.
 function successlobby() {
   // Win takes priority — if the player typed DEFCONV, lock to the victory screen
   if (winMode) {
@@ -772,9 +770,8 @@ function successlobby() {
 }
 
 
-// ============================================================
-//  REUSABLE CHROME
-// ============================================================
+/********************REUSABLE CHROME********************/
+// Shared terminal frame, header, footer, and button bits.
 function drawTerminalFrame() {
   push();
   stroke(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
@@ -979,9 +976,8 @@ function leaveFinalPuzzle() {
 }
 
 
-// ============================================================
-//  LOBBY BACKGROUND & CHROME
-// ============================================================
+/********************LOBBY BACKGROUND********************/
+// Background grid, timer bar, and bottom status strip.
 function drawLobbyBackground() {
   push();
   // subtle grid
@@ -1116,9 +1112,8 @@ function drawLobbyStatusBar() {
 
 
 
-// ============================================================
-//  SIDEBAR SHORTCUTS  +  LIVE MINI TERMINAL (lobby content)
-// ============================================================
+/********************LOBBY APPS********************/
+// Sidebar shortcuts and the decorative mini terminal window.
 function updateAppTileHovers() {
   for (let i = 0; i < appTiles.length; i++) {
     let a = appTiles[i];
@@ -1333,7 +1328,7 @@ function drawMiniTerminalWindow() {
   textAlign(CENTER, CENTER);
   text("X", terminalWindowRect.x + terminalWindowRect.w - 12, terminalWindowRect.y + 13);
 
-  // === TERMINAL CONTENT (mimics the screenshot) =================
+  // Terminal content inside the mini window.
   let terminalTextStartX = terminalWindowRect.x + 14;
   let terminalTextStartY = terminalWindowRect.y + 38;
   let terminalLineHeight = 18;
@@ -1384,9 +1379,8 @@ function drawMiniTerminalWindow() {
 }
 
 
-// ============================================================
-//  CIPHER KEY SCREEN  (was sticky note on desk)
-// ============================================================
+/********************CIPHER SCREEN********************/
+// Fullscreen version of the note that acts as the cipher key.
 function drawCipherScreen() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
@@ -1552,9 +1546,8 @@ function buildCipherNote(noteGraphic) {
 }
 
 
-// ============================================================
-//  NEWSPAPER SCREEN
-// ============================================================
+/********************NEWSPAPER SCREEN********************/
+// Archive paper view plus zoomed article sections.
 function drawNewspaperScreen() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
@@ -1739,9 +1732,8 @@ function drawNewspaperZoom() {
 }
 
 
-// ============================================================
-//  PASSWORD (CHALLENGE ONE)
-// ============================================================
+/********************PASSWORD SCREEN********************/
+// First real terminal gate and later code-entry hub.
 function drawPasswordScreen() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
@@ -1816,9 +1808,8 @@ function drawPasswordScreen() {
 }
 
 
-// ============================================================
-//  SUCCESS
-// ============================================================
+/********************SUCCESS SCREEN********************/
+// Fake WOPR menu after the main password works.
 function drawSuccessScreen() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
@@ -1894,9 +1885,8 @@ function drawSuccessScreen() {
 }
 
 
-// ============================================================
-//  VICTORY SCREEN — appears when the player types DEFCONV
-// ============================================================
+/********************VICTORY SCREEN********************/
+// Appears when the player types DEFCONV.
 function drawVictoryScreen() {
   // Soft blue background
   background(2, 8, 18);
@@ -2005,9 +1995,8 @@ function drawVictoryScreen() {
 }
 
 
-// ============================================================
-//  FAILURE SCREEN — appears when the 15-min timer hits 0
-// ============================================================
+/********************FAILURE SCREEN********************/
+// Appears when the timer runs out.
 function drawFailureScreen() {
   // Solid black + heavy red wash
   background(8, 0, 0);
@@ -2125,9 +2114,8 @@ function drawFailureScreen() {
 }
 
 
-// ============================================================
-//  PIGEON CIPHER REVEAL
-// ============================================================
+/********************PIGEON CIPHER********************/
+// Final animated tic-tac-toe readout.
 function drawPigeonCipher() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
@@ -2260,10 +2248,8 @@ function drawPigeonBoard(boardCenterX, boardCenterY, boardSize, boardFrameData) 
 }
 
 
-// ============================================================
-//  CIRCUITS PUZZLE — green CRT theme, grid of toggleable nodes,
-//  answer hidden under a lightbulb that brightens with progress.
-// ============================================================
+/********************CIRCUITS PUZZLE********************/
+// Toggle grid with a lightbulb panel that brightens as the answer gets closer.
 function drawCircuitsPuzzle() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
@@ -2670,9 +2656,8 @@ function drawZoomedFlag(flagCenterX, flagCenterY, flagSize) {
 
 
 
-// ============================================================
-//  USER INPUT
-// ============================================================
+/********************USER INPUT********************/
+// Keyboard and mouse flow for the whole game.
 function keyTyped() {
   if (winMode || failureMode) return;
   if (state === 0) {
@@ -2812,9 +2797,8 @@ function keyPressed() {
 }
 
 
-// ============================================================
-//  CIRCUITS — click routing & state
-// ============================================================
+/********************CIRCUITS INPUT********************/
+// Click handling and answer checking for the circuit puzzle.
 function handleCircuitClicks() {
   let backRect = getFooterLabelRect("[ BACK ] RETURN TO TERMINAL");
   if (mouseX >= backRect.x && mouseX <= backRect.x + backRect.w &&
@@ -2863,9 +2847,8 @@ function checkCircuitSolution() {
 
 
 
-// ============================================================
-//  NEWSPAPER BUFFER (unchanged content — only the chrome around it changed)
-// ============================================================
+/********************NEWSPAPER BUFFER********************/
+// Builds the offscreen newspaper art and puzzle board.
 function buildNewspaper(g) {
   g.background(255);
 

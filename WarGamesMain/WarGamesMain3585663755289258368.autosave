@@ -23,7 +23,7 @@ let usernamePromptDismissed = false;
 let newspaperBuffer = null;
 let cipherNoteBuffer = null;
 
-// ===== Game timer (15 min countdown linked to ACCESS:DENIED reveal) =====
+/* Game timer (15 min countdown linked to ACCESS:DENIED reveal) */
 const TIMER_DURATION_MS = 45 * 60 * 1000; // 15 minutes
 const TIMER_TARGET = "ACCESS:DENIED";     // 13 chars; one revealed per ~1.15 min
 let timerStartMs = null;                  // set when player enters lobby (state 1)
@@ -31,7 +31,7 @@ let failureMode = false;                  // true once timer hits 0
 let failureStartMs = null;                // when failureMode flipped
 let failureTypedIndex = 0;                // typewriter progress for "> Failure"
 
-// ===== Win state (typing DEFCONV) =====
+/* Win state (typing DEFCONV) */
 let winMode = false;
 let winStartMs = null;
 
@@ -185,9 +185,7 @@ let appTiles = [
 let miniTermRect = { x: 145, y: 60, w: 525, h: 540 };
 let miniTermHovered = false;
 
-// ============================================================
-//  THEME  —  phosphor-green CRT palette
-// ============================================================
+/* THEME — phosphor-green CRT palette */
 const C_BG          = [4, 12, 6];
 const C_BG_PANEL    = [8, 22, 14];
 const C_GREEN_HI    = [130, 255, 160];
@@ -266,9 +264,7 @@ function draw() {
 }
 
 
-// ============================================================
-//  CRT OVERLAY — scanlines + vignette, applied over everything
-// ============================================================
+/* CRT OVERLAY — scanlines + vignette, applied over everything */
 function drawCRTOverlay() {
   push();
   resetMatrix();
@@ -303,9 +299,7 @@ function drawCRTOverlay() {
 }
 
 
-// ============================================================
-//  TITLE SCREEN — desk + monitor drawn from scratch, zooms in on click
-// ============================================================
+/* TITLE SCREEN — desk + monitor drawn from scratch, zooms in on click */
 function titleScreen() {
   push();
 
@@ -729,9 +723,7 @@ function drawTitleClickPrompt(cx, cy) {
 }
 
 
-// ============================================================
-//  LOBBY / ROUTING
-// ============================================================
+/* LOBBY / ROUTING */
 function successlobby() {
   // Win takes priority — if the player typed DEFCONV, lock to the victory screen
   if (winMode) {
@@ -777,9 +769,7 @@ function successlobby() {
 }
 
 
-// ============================================================
-//  REUSABLE CHROME
-// ============================================================
+/* REUSABLE CHROME */
 function drawTerminalFrame() {
   push();
   stroke(C_GREEN_MID[0], C_GREEN_MID[1], C_GREEN_MID[2]);
@@ -984,9 +974,7 @@ function leaveFinalPuzzle() {
 }
 
 
-// ============================================================
-//  LOBBY BACKGROUND & CHROME
-// ============================================================
+/* LOBBY BACKGROUND & CHROME */
 function drawLobbyBackground() {
   push();
   // subtle grid
@@ -1121,9 +1109,7 @@ function drawLobbyStatusBar() {
 
 
 
-// ============================================================
-//  SIDEBAR SHORTCUTS  +  LIVE MINI TERMINAL (lobby content)
-// ============================================================
+/* SIDEBAR SHORTCUTS + LIVE MINI TERMINAL (lobby content) */
 function updateAppTileHovers() {
   for (let i = 0; i < appTiles.length; i++) {
     let a = appTiles[i];
@@ -1389,9 +1375,7 @@ function drawMiniTerminalWindow() {
 }
 
 
-// ============================================================
-//  CIPHER KEY SCREEN  (was sticky note on desk)
-// ============================================================
+/* CIPHER KEY SCREEN (was sticky note on desk) */
 function drawCipherScreen() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
@@ -1557,9 +1541,7 @@ function buildCipherNote(g) {
 }
 
 
-// ============================================================
-//  NEWSPAPER SCREEN
-// ============================================================
+/* NEWSPAPER SCREEN */
 function drawNewspaperScreen() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
@@ -1744,9 +1726,7 @@ function drawNewspaperZoom() {
 }
 
 
-// ============================================================
-//  PASSWORD (CHALLENGE ONE)
-// ============================================================
+/* PASSWORD (CHALLENGE ONE) */
 function drawPasswordScreen() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
@@ -1821,9 +1801,7 @@ function drawPasswordScreen() {
 }
 
 
-// ============================================================
-//  SUCCESS
-// ============================================================
+/* SUCCESS */
 function drawSuccessScreen() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
@@ -1899,9 +1877,7 @@ function drawSuccessScreen() {
 }
 
 
-// ============================================================
-//  VICTORY SCREEN — appears when the player types DEFCONV
-// ============================================================
+/* VICTORY SCREEN — appears when the player types DEFCONV */
 function drawVictoryScreen() {
   // Soft blue background
   background(2, 8, 18);
@@ -2010,9 +1986,7 @@ function drawVictoryScreen() {
 }
 
 
-// ============================================================
-//  FAILURE SCREEN — appears when the 15-min timer hits 0
-// ============================================================
+/* FAILURE SCREEN — appears when the 15-min timer hits 0 */
 function drawFailureScreen() {
   // Solid black + heavy red wash
   background(8, 0, 0);
@@ -2130,9 +2104,7 @@ function drawFailureScreen() {
 }
 
 
-// ============================================================
-//  PIGEON CIPHER REVEAL
-// ============================================================
+/* PIGEON CIPHER REVEAL */
 function drawPigeonCipher() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
@@ -2265,10 +2237,7 @@ function drawPigeonBoard(cx, cy, size, board) {
 }
 
 
-// ============================================================
-//  CIRCUITS PUZZLE — green CRT theme, grid of toggleable nodes,
-//  answer hidden under a lightbulb that brightens with progress.
-// ============================================================
+/* CIRCUITS PUZZLE — green CRT theme, grid of toggleable nodes, // answer hidden under a lightbulb that brightens with progress. */
 function drawCircuitsPuzzle() {
   background(C_BG[0], C_BG[1], C_BG[2]);
   drawTerminalFrame();
@@ -2675,9 +2644,7 @@ function drawZoomedFlag(cx, cy, s) {
 
 
 
-// ============================================================
-//  USER INPUT
-// ============================================================
+/* USER INPUT */
 function keyTyped() {
   if (winMode || failureMode) return;
   if (state === 0) {
@@ -2817,9 +2784,7 @@ function keyPressed() {
 }
 
 
-// ============================================================
-//  CIRCUITS — click routing & state
-// ============================================================
+/* CIRCUITS — click routing & state */
 function handleCircuitClicks() {
   let backRect = getFooterLabelRect("[ BACK ] RETURN TO TERMINAL");
   if (mouseX >= backRect.x && mouseX <= backRect.x + backRect.w &&
@@ -2868,9 +2833,7 @@ function checkCircuitSolution() {
 
 
 
-// ============================================================
-//  NEWSPAPER BUFFER (unchanged content — only the chrome around it changed)
-// ============================================================
+/* NEWSPAPER BUFFER (unchanged content — only the chrome around it changed) */
 function buildNewspaper(g) {
   g.background(255);
 
