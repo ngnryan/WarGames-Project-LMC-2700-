@@ -1355,7 +1355,7 @@ function drawMiniTerminalWindow() {
     "Imperative:",
     "    DIR | CLIP      Leave nothing unturned.",
     "",
-    "    CLIP < README.TXT  XIRXFRGH",
+    "    CLIP < README.TXT  XRIXFRGH",
     "",
     "c:\\users\\falken\\Desktop>ver | clip",
     "",
